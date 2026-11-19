@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ControllerPC.App/ControllerPC.App.csproj" />
+    <Project Path="src/ControllerPC.Core/ControllerPC.Core.csproj" />
+    <Project Path="src/ControllerPC.Windows/ControllerPC.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ControllerPC.App.Tests/ControllerPC.App.Tests.csproj" />
+    <Project Path="tests/ControllerPC.Core.Tests/ControllerPC.Core.Tests.csproj" />
+    <Project Path="tests/ControllerPC.Windows.Tests/ControllerPC.Windows.Tests.csproj" />
+  </Folder>
+</Solution>
