@@ -88,6 +88,20 @@ public sealed class DesktopInputTranslatorLifecycleTests
     }
 
     [Fact]
+    public void ReleaseAll_ReleasesEveryHeldKeyInOneCall()
+    {
+        _harness.Bind(ControllerButton.X, new KeyCombinationAction(new KeyCombination([Ctrl])));
+        _harness.Begin();
+        _harness.Hold(ControllerButton.X);
+        _harness.Hold(ControllerButton.X | B);
+        _harness.Sink.KeyCalls.Clear();
+
+        _harness.Translator.ReleaseAll();
+
+        Assert.Equal([ReleaseCall(Ctrl, C)], _harness.Sink.KeyCalls);
+    }
+
+    [Fact]
     public void ReleaseAll_ThenButtonsLetGo_SendsNoFurtherReleases()
     {
         _harness.Begin();
@@ -176,7 +190,7 @@ public sealed class DesktopInputTranslatorLifecycleTests
     {
         _harness.Begin(heldAtStart: Right);
 
-        _harness.Hold(Right, TimeSpan.FromSeconds(1));
+        _harness.HoldFor(Right, TimeSpan.FromSeconds(1));
 
         Assert.Empty(_harness.Sink.CursorMoves);
     }
@@ -189,7 +203,7 @@ public sealed class DesktopInputTranslatorLifecycleTests
         _harness.Sink.CursorMoves.Clear();
 
         _harness.Begin(heldAtStart: Right);
-        _harness.Hold(Right, TimeSpan.FromSeconds(1));
+        _harness.HoldFor(Right, TimeSpan.FromSeconds(1));
 
         Assert.Empty(_harness.Sink.CursorMoves);
     }

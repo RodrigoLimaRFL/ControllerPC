@@ -1,12 +1,14 @@
 using ControllerPC.Core.Controller;
+using ControllerPC.Core.DesktopMode;
 using ControllerPC.Core.Profiles;
 
 namespace ControllerPC.Core.Tests.DesktopMode;
 
 public sealed class DesktopInputTranslatorStickTests
 {
-    private static readonly TimeSpan HalfSecond = TimeSpan.FromMilliseconds(500);
-    private static readonly TimeSpan OneSecond = TimeSpan.FromSeconds(1);
+    // The longest update the translator integrates over: 100 px at CursorSpeed 1000 px/s, a wheel delta of 120
+    // (one notch) at ScrollSpeed 10 notches/s.
+    private static readonly TimeSpan LongestUpdate = DesktopInputTranslator.MaxUpdateElapsed;
 
     // At CursorSpeed 1000 px/s this is 0.4 px per update; at ScrollSpeed 10 notches/s it is a wheel delta of 0.48.
     private static readonly TimeSpan SubUnitStep = TimeSpan.FromTicks(4_000);
@@ -25,7 +27,7 @@ public sealed class DesktopInputTranslatorStickTests
     [Fact]
     public void Update_LeftStickInsideDeadzone_DoesNotMoveCursor()
     {
-        _harness.Sticks(new StickPosition(0.15, 0.1), Center, OneSecond);
+        _harness.Sticks(new StickPosition(0.15, 0.1), Center, LongestUpdate);
 
         Assert.Empty(_harness.Sink.CursorMoves);
     }
@@ -33,26 +35,29 @@ public sealed class DesktopInputTranslatorStickTests
     [Fact]
     public void Update_LeftStickFullRight_MovesRightAtCursorSpeed()
     {
-        _harness.Sticks(FullRight, Center, HalfSecond);
+        _harness.Sticks(FullRight, Center, LongestUpdate);
 
-        Assert.Equal([(500, 0)], _harness.Sink.CursorMoves);
+        Assert.Equal([(100, 0)], _harness.Sink.CursorMoves);
     }
 
     [Fact]
     public void Update_LeftStickUp_MovesCursorUpOnScreen()
     {
-        _harness.Sticks(FullUp, Center, HalfSecond);
+        _harness.Sticks(FullUp, Center, LongestUpdate);
 
-        Assert.Equal([(0, -500)], _harness.Sink.CursorMoves);
+        Assert.Equal([(0, -100)], _harness.Sink.CursorMoves);
     }
 
     [Fact]
     public void Update_LeftStickBeyondUnitCircle_MovesNoFasterThanFullDeflection()
     {
-        _harness.Sticks(new StickPosition(1, 1), Center, OneSecond);
+        const double FullDeflectionDistance = 100;
+        const double TruncationTolerance = 2;
+
+        _harness.Sticks(new StickPosition(1, 1), Center, LongestUpdate);
 
         var distance = Math.Sqrt((_harness.Sink.TotalDx * _harness.Sink.TotalDx) + (_harness.Sink.TotalDy * _harness.Sink.TotalDy));
-        Assert.InRange(distance, TranslatorHarness.CursorSpeed - 1, TranslatorHarness.CursorSpeed);
+        Assert.InRange(distance, FullDeflectionDistance - TruncationTolerance, FullDeflectionDistance);
     }
 
     [Fact]
@@ -73,9 +78,9 @@ public sealed class DesktopInputTranslatorStickTests
         _harness.Profile.Tuning.Deadzone = 0.5;
         _harness.Profile.Tuning.AccelerationEnabled = false;
 
-        _harness.Sticks(new StickPosition(0.75, 0), Center, OneSecond);
+        _harness.Sticks(new StickPosition(0.75, 0), Center, LongestUpdate);
 
-        Assert.Equal(500, _harness.Sink.TotalDx);
+        Assert.Equal(50, _harness.Sink.TotalDx);
     }
 
     [Fact]
@@ -84,9 +89,9 @@ public sealed class DesktopInputTranslatorStickTests
         _harness.Profile.Tuning.Deadzone = 0.5;
         _harness.Profile.Tuning.AccelerationEnabled = true;
 
-        _harness.Sticks(new StickPosition(0.75, 0), Center, OneSecond);
+        _harness.Sticks(new StickPosition(0.75, 0), Center, LongestUpdate);
 
-        Assert.Equal(250, _harness.Sink.TotalDx);
+        Assert.Equal(25, _harness.Sink.TotalDx);
     }
 
     [Fact]
@@ -94,31 +99,63 @@ public sealed class DesktopInputTranslatorStickTests
     {
         _harness.Profile.Tuning.AccelerationEnabled = true;
 
-        _harness.Sticks(FullRight, Center, HalfSecond);
+        _harness.Sticks(FullRight, Center, LongestUpdate);
 
-        Assert.Equal(500, _harness.Sink.TotalDx);
+        Assert.Equal(100, _harness.Sink.TotalDx);
+    }
+
+    [Fact]
+    public void Update_NegativeElapsed_DoesNotMoveCursor()
+    {
+        _harness.Sticks(FullRight, Center, -LongestUpdate);
+
+        Assert.Empty(_harness.Sink.CursorMoves);
+    }
+
+    [Fact]
+    public void Update_ElapsedLongerThanMaxUpdateElapsed_MovesAsFarAsMaxUpdateElapsed()
+    {
+        _harness.Sticks(FullRight, Center, TimeSpan.FromHours(1));
+
+        Assert.Equal([(100, 0)], _harness.Sink.CursorMoves);
+    }
+
+    [Fact]
+    public void Update_NegativeElapsed_DoesNotScroll()
+    {
+        _harness.Sticks(Center, FullUp, -LongestUpdate);
+
+        Assert.Empty(_harness.Sink.Scrolls);
+    }
+
+    [Fact]
+    public void Update_ElapsedLongerThanMaxUpdateElapsed_ScrollsAsFarAsMaxUpdateElapsed()
+    {
+        _harness.Sticks(Center, FullUp, TimeSpan.FromHours(1));
+
+        Assert.Equal([(120, 0)], _harness.Sink.Scrolls);
     }
 
     [Fact]
     public void Update_ScrollRoleRightStickUp_ScrollsUpAtScrollSpeed()
     {
-        _harness.Sticks(Center, FullUp, HalfSecond);
+        _harness.Sticks(Center, FullUp, LongestUpdate);
 
-        Assert.Equal([(600, 0)], _harness.Sink.Scrolls);
+        Assert.Equal([(120, 0)], _harness.Sink.Scrolls);
     }
 
     [Fact]
     public void Update_ScrollRoleRightStickRight_ScrollsRight()
     {
-        _harness.Sticks(Center, FullRight, HalfSecond);
+        _harness.Sticks(Center, FullRight, LongestUpdate);
 
-        Assert.Equal([(0, 600)], _harness.Sink.Scrolls);
+        Assert.Equal([(0, 120)], _harness.Sink.Scrolls);
     }
 
     [Fact]
     public void Update_ScrollRole_RightStickDoesNotMoveCursor()
     {
-        _harness.Sticks(Center, FullRight, HalfSecond);
+        _harness.Sticks(Center, FullRight, LongestUpdate);
 
         Assert.Empty(_harness.Sink.CursorMoves);
     }
@@ -126,7 +163,7 @@ public sealed class DesktopInputTranslatorStickTests
     [Fact]
     public void Update_ScrollRoleRightStickInsideDeadzone_DoesNotScroll()
     {
-        _harness.Sticks(Center, new StickPosition(0, 0.15), OneSecond);
+        _harness.Sticks(Center, new StickPosition(0, 0.15), LongestUpdate);
 
         Assert.Empty(_harness.Sink.Scrolls);
     }
@@ -149,9 +186,9 @@ public sealed class DesktopInputTranslatorStickTests
         _harness.Profile.Tuning.Deadzone = 0.5;
         _harness.Profile.Tuning.AccelerationEnabled = true;
 
-        _harness.Sticks(Center, new StickPosition(0, 0.75), OneSecond);
+        _harness.Sticks(Center, new StickPosition(0, 0.75), LongestUpdate);
 
-        Assert.Equal(600, _harness.Sink.TotalVerticalScroll);
+        Assert.Equal(60, _harness.Sink.TotalVerticalScroll);
     }
 
     [Fact]
@@ -159,9 +196,9 @@ public sealed class DesktopInputTranslatorStickTests
     {
         _harness.Profile.RightStickRole = RightStickRole.Cursor;
 
-        _harness.Sticks(Center, FullUp, HalfSecond);
+        _harness.Sticks(Center, FullUp, LongestUpdate);
 
-        Assert.Equal([(0, -500)], _harness.Sink.CursorMoves);
+        Assert.Equal([(0, -100)], _harness.Sink.CursorMoves);
     }
 
     [Fact]
@@ -169,7 +206,7 @@ public sealed class DesktopInputTranslatorStickTests
     {
         _harness.Profile.RightStickRole = RightStickRole.Cursor;
 
-        _harness.Sticks(Center, FullUp, HalfSecond);
+        _harness.Sticks(Center, FullUp, LongestUpdate);
 
         Assert.Empty(_harness.Sink.Scrolls);
     }
@@ -179,9 +216,9 @@ public sealed class DesktopInputTranslatorStickTests
     {
         _harness.Profile.RightStickRole = RightStickRole.Cursor;
 
-        _harness.Sticks(FullRight, FullRight, HalfSecond);
+        _harness.Sticks(FullRight, FullRight, LongestUpdate);
 
-        Assert.Equal([(1000, 0)], _harness.Sink.CursorMoves);
+        Assert.Equal([(200, 0)], _harness.Sink.CursorMoves);
     }
 
     [Fact]
@@ -189,7 +226,7 @@ public sealed class DesktopInputTranslatorStickTests
     {
         _harness.Profile.RightStickRole = RightStickRole.None;
 
-        _harness.Sticks(Center, FullUp, HalfSecond);
+        _harness.Sticks(Center, FullUp, LongestUpdate);
 
         Assert.Empty(_harness.Sink.CursorMoves);
         Assert.Empty(_harness.Sink.Scrolls);
@@ -203,9 +240,9 @@ public sealed class DesktopInputTranslatorStickTests
     {
         _harness.Profile.RightStickRole = role;
 
-        _harness.Sticks(FullRight, Center, HalfSecond);
+        _harness.Sticks(FullRight, Center, LongestUpdate);
 
-        Assert.Equal([(500, 0)], _harness.Sink.CursorMoves);
+        Assert.Equal([(100, 0)], _harness.Sink.CursorMoves);
     }
 
     [Fact]

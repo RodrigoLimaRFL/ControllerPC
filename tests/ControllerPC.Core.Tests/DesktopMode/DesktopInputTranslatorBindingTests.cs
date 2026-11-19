@@ -266,12 +266,87 @@ public sealed class DesktopInputTranslatorBindingTests
     }
 
     [Fact]
-    public void Update_ProfileSwitchPressedWithOtherBindings_StillPressesTheOthers()
+    public void Update_BindingBeforeProfileSwitchInButtonOrderPressedTogether_IsPressed()
     {
         _harness.Bind(A, new MouseButtonAction(MouseButton.Left)).Bind(Y, new NextProfileAction()).Begin();
 
         _harness.Hold(A | Y);
 
         Assert.Equal([MouseEvent("down", MouseButton.Left)], _harness.Sink.ButtonEvents);
+    }
+
+    [Fact]
+    public void Update_BindingAfterProfileSwitchInButtonOrderPressedTogether_IsPressed()
+    {
+        // LeftShoulder comes after Y in ControllerButtons.All.
+        _harness.Bind(LeftShoulder, new MouseButtonAction(MouseButton.Left)).Bind(Y, new NextProfileAction()).Begin();
+
+        var profileSwitch = _harness.Hold(LeftShoulder | Y);
+
+        Assert.IsType<NextProfileAction>(profileSwitch);
+        Assert.Equal([MouseEvent("down", MouseButton.Left)], _harness.Sink.ButtonEvents);
+    }
+
+    [Fact]
+    public void Update_KeyCombinationBindingPressed_SendsWholeCombinationInOnePressCall()
+    {
+        _harness.Bind(A, new KeyCombinationAction(new KeyCombination([Ctrl, Shift, Escape]))).Begin();
+
+        _harness.Hold(A);
+
+        Assert.Equal([PressCall(Ctrl, Shift, Escape)], _harness.Sink.KeyCalls);
+    }
+
+    [Fact]
+    public void Update_KeyCombinationBindingReleased_SendsWholeCombinationInOneReleaseCall()
+    {
+        _harness.Bind(A, new KeyCombinationAction(new KeyCombination([Ctrl, Shift, Escape]))).Begin();
+        _harness.Hold(A);
+        _harness.Sink.KeyCalls.Clear();
+
+        _harness.Hold(None);
+
+        Assert.Equal([ReleaseCall(Ctrl, Shift, Escape)], _harness.Sink.KeyCalls);
+    }
+
+    [Fact]
+    public void Update_SecondBindingSharesHeldKey_PressesOnlyItsOtherKeysInOneCall()
+    {
+        _harness.Bind(A, new KeyCombinationAction(new KeyCombination([Ctrl, Shift, C])))
+            .Bind(B, new KeyCombinationAction(new KeyCombination([Ctrl, V, Escape])))
+            .Begin();
+        _harness.Hold(A);
+        _harness.Sink.KeyCalls.Clear();
+
+        _harness.Hold(A | B);
+
+        Assert.Equal([PressCall(V, Escape)], _harness.Sink.KeyCalls);
+    }
+
+    [Fact]
+    public void Update_BindingSharingHeldKeyReleased_ReleasesOnlyItsOtherKeysInOneCall()
+    {
+        _harness.Bind(A, new KeyCombinationAction(new KeyCombination([Ctrl, Shift, C])))
+            .Bind(B, new KeyCombinationAction(new KeyCombination([Ctrl, V, Escape])))
+            .Begin();
+        _harness.Hold(A | B);
+        _harness.Sink.KeyCalls.Clear();
+
+        _harness.Hold(B);
+
+        Assert.Equal([ReleaseCall(Shift, C)], _harness.Sink.KeyCalls);
+    }
+
+    [Fact]
+    public void Update_LastBindingSharingKeyReleased_ReleasesSharedKeyInSameCall()
+    {
+        _harness.Bind(A, new KeyCombinationAction(Copy)).Bind(B, new KeyCombinationAction(Paste)).Begin();
+        _harness.Hold(A | B);
+        _harness.Hold(B);
+        _harness.Sink.KeyCalls.Clear();
+
+        _harness.Hold(None);
+
+        Assert.Equal([ReleaseCall(Ctrl, V)], _harness.Sink.KeyCalls);
     }
 }

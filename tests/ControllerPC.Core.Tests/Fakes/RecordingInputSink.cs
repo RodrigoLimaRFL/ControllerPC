@@ -15,6 +15,9 @@ public sealed class RecordingInputSink : IInputSink
     /// <summary>Key and mouse button presses and releases in call order, e.g. <c>"key down 0x11"</c>, <c>"mouse up Left"</c>.</summary>
     public List<string> ButtonEvents { get; } = [];
 
+    /// <summary>Each <see cref="PressKeys"/> and <see cref="ReleaseKeys"/> call, e.g. <c>"press 0x11+0x43"</c>.</summary>
+    public List<string> KeyCalls { get; } = [];
+
     public int TotalDx => CursorMoves.Sum(move => move.Dx);
 
     public int TotalDy => CursorMoves.Sum(move => move.Dy);
@@ -48,6 +51,7 @@ public sealed class RecordingInputSink : IInputSink
 
     public void PressKeys(KeyCombination keys)
     {
+        KeyCalls.Add(PressCall(keys.VirtualKeys.ToArray()));
         foreach (var key in keys.VirtualKeys)
         {
             ButtonEvents.Add(KeyEvent("down", key));
@@ -57,6 +61,7 @@ public sealed class RecordingInputSink : IInputSink
 
     public void ReleaseKeys(KeyCombination keys)
     {
+        KeyCalls.Add(ReleaseCall(keys.VirtualKeys.ToArray()));
         foreach (var key in keys.VirtualKeys.Reverse())
         {
             ButtonEvents.Add(KeyEvent("up", key));
@@ -65,6 +70,12 @@ public sealed class RecordingInputSink : IInputSink
     }
 
     public static string KeyEvent(string direction, ushort key) => $"key {direction} 0x{key:X2}";
+
+    /// <param name="keys">The combination passed to <see cref="PressKeys"/>, in its order.</param>
+    public static string PressCall(params ushort[] keys) => $"press {new KeyCombination(keys)}";
+
+    /// <param name="keys">The combination passed to <see cref="ReleaseKeys"/>, in its (press) order.</param>
+    public static string ReleaseCall(params ushort[] keys) => $"release {new KeyCombination(keys)}";
 
     public static string MouseEvent(string direction, MouseButton button) => $"mouse {direction} {button}";
 }

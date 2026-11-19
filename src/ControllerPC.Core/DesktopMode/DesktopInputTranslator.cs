@@ -24,10 +24,15 @@ namespace ControllerPC.Core.DesktopMode;
 /// <item><see cref="Update"/> before <see cref="Begin"/> (or after <see cref="ReleaseAll"/>) does nothing.</item>
 /// </list>
 /// Time is passed as <c>elapsed</c> since the previous update because movement integrates speed over time.
+/// <c>elapsed</c> is clamped to [0, 100 ms], so a clock going backwards never moves the cursor in reverse and a
+/// stalled poll loop does not make the cursor jump or held Nudges catch up all at once.
 /// Not thread-safe: call from a single thread.
 /// </remarks>
 public sealed class DesktopInputTranslator
 {
+    /// <summary>The longest time one update integrates movement and Nudge repeats over.</summary>
+    internal static readonly TimeSpan MaxUpdateElapsed = TimeSpan.FromMilliseconds(100);
+
     private readonly ButtonEdgeDetector _buttonEdges = new();
     private readonly HeldOutputTracker _heldOutput;
     private readonly NudgeRepeater _nudges;
@@ -68,6 +73,7 @@ public sealed class DesktopInputTranslator
             return null;
         }
 
+        var boundedElapsed = TimeSpan.FromTicks(Math.Clamp(elapsed.Ticks, 0, MaxUpdateElapsed.Ticks));
         var edges = _buttonEdges.Update(state.Buttons);
 
         // Releases go first so that a Binding let go in the same poll another is pressed is fully up before
@@ -77,15 +83,16 @@ public sealed class DesktopInputTranslator
             ReleaseBinding(button);
         }
 
-        _nudges.Advance(elapsed);
+        _nudges.Advance(boundedElapsed);
 
         ProfileSwitchAction? profileSwitch = null;
         foreach (var button in ControllerButtons.Split(edges.Pressed))
         {
-            profileSwitch ??= PressBinding(button, _profile);
+            var pressedSwitch = PressBinding(button, _profile);
+            profileSwitch ??= pressedSwitch;
         }
 
-        MoveWithSticks(state, _profile, elapsed);
+        MoveWithSticks(state, _profile, boundedElapsed);
         return profileSwitch;
     }
 

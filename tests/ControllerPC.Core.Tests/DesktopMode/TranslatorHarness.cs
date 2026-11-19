@@ -55,6 +55,21 @@ internal sealed class TranslatorHarness
     /// <inheritdoc cref="Hold(ControllerButton, TimeSpan)"/>
     public ProfileSwitchAction? Hold(ControllerButton buttons) => Hold(buttons, Poll);
 
+    /// <summary>
+    /// Holds exactly <paramref name="buttons"/> for <paramref name="duration"/>, split into updates no longer than
+    /// <see cref="DesktopInputTranslator.MaxUpdateElapsed"/> so none of it is clamped away.
+    /// </summary>
+    public void HoldFor(ControllerButton buttons, TimeSpan duration)
+    {
+        var remaining = duration;
+        while (remaining > TimeSpan.Zero)
+        {
+            var step = remaining < DesktopInputTranslator.MaxUpdateElapsed ? remaining : DesktopInputTranslator.MaxUpdateElapsed;
+            Hold(buttons, step);
+            remaining -= step;
+        }
+    }
+
     public void Sticks(StickPosition left, StickPosition right, TimeSpan elapsed) =>
         Translator.Update(new ControllerState(ControllerButton.None, left, right), elapsed);
 }

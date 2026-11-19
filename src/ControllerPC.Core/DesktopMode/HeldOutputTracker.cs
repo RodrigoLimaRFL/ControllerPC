@@ -7,9 +7,10 @@ namespace ControllerPC.Core.DesktopMode;
 /// goes down with the first and comes up only after the last is let go.
 /// </summary>
 /// <remarks>
-/// Keys are counted per virtual key and sent to the sink as single-key Key Combinations as each one goes from
-/// unheld to held or back. That keeps a Key Combination's press order (in order) and release order (in reverse)
-/// while skipping the keys another Binding still holds.
+/// Keys are counted per virtual key. Pressing a Key Combination sends the sink one <see cref="IInputSink.PressKeys"/>
+/// call with just the keys that were not held yet, in combination order; releasing sends one
+/// <see cref="IInputSink.ReleaseKeys"/> call with just the keys no other Binding still holds, which the sink
+/// releases in reverse. Each Key Combination thus stays a single, atomic sink call.
 /// </remarks>
 internal sealed class HeldOutputTracker
 {
@@ -25,26 +26,40 @@ internal sealed class HeldOutputTracker
 
     public void PressKeys(KeyCombination keys)
     {
+        var newlyHeld = new List<ushort>();
         foreach (var key in keys.VirtualKeys)
         {
             if (AddHold(_keyHoldCounts, key))
             {
-                _heldKeysInPressOrder.Add(key);
-                _sink.PressKeys(SingleKey(key));
+                newlyHeld.Add(key);
             }
+        }
+
+        if (newlyHeld.Count > 0)
+        {
+            _heldKeysInPressOrder.AddRange(newlyHeld);
+            _sink.PressKeys(new KeyCombination(newlyHeld));
         }
     }
 
     public void ReleaseKeys(KeyCombination keys)
     {
+        var noLongerHeld = new List<ushort>();
         for (var index = keys.VirtualKeys.Length - 1; index >= 0; index--)
         {
             var key = keys.VirtualKeys[index];
             if (RemoveHold(_keyHoldCounts, key))
             {
+                noLongerHeld.Add(key);
                 _heldKeysInPressOrder.Remove(key);
-                _sink.ReleaseKeys(SingleKey(key));
             }
+        }
+
+        if (noLongerHeld.Count > 0)
+        {
+            // Collected in release order; the sink expects press order and releases in reverse.
+            noLongerHeld.Reverse();
+            _sink.ReleaseKeys(new KeyCombination(noLongerHeld));
         }
     }
 
@@ -74,16 +89,14 @@ internal sealed class HeldOutputTracker
 
         _mouseButtonHoldCounts.Clear();
 
-        for (var index = _heldKeysInPressOrder.Count - 1; index >= 0; index--)
+        if (_heldKeysInPressOrder.Count > 0)
         {
-            _sink.ReleaseKeys(SingleKey(_heldKeysInPressOrder[index]));
+            _sink.ReleaseKeys(new KeyCombination(_heldKeysInPressOrder));
         }
 
         _heldKeysInPressOrder.Clear();
         _keyHoldCounts.Clear();
     }
-
-    private static KeyCombination SingleKey(ushort key) => new([key]);
 
     /// <returns><c>true</c> when <paramref name="item"/> was not held before.</returns>
     private static bool AddHold<T>(Dictionary<T, int> holdCounts, T item)

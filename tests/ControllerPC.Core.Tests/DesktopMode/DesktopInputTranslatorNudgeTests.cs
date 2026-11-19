@@ -42,7 +42,7 @@ public sealed class DesktopInputTranslatorNudgeTests
         _harness.Begin();
         _harness.Hold(Right, TimeSpan.Zero);
 
-        _harness.Hold(Right, NudgeRepeatTimer.InitialRepeatDelay - OneTick);
+        _harness.HoldFor(Right, NudgeRepeatTimer.InitialRepeatDelay - OneTick);
 
         Assert.Equal(NudgeStep, _harness.Sink.TotalDx);
     }
@@ -53,7 +53,7 @@ public sealed class DesktopInputTranslatorNudgeTests
         _harness.Begin();
         _harness.Hold(Right, TimeSpan.Zero);
 
-        _harness.Hold(Right, NudgeRepeatTimer.InitialRepeatDelay);
+        _harness.HoldFor(Right, NudgeRepeatTimer.InitialRepeatDelay);
 
         Assert.Equal(2 * NudgeStep, _harness.Sink.TotalDx);
     }
@@ -63,8 +63,8 @@ public sealed class DesktopInputTranslatorNudgeTests
     {
         _harness.Begin();
         _harness.Hold(Right, TimeSpan.Zero);
-        _harness.Hold(Right, NudgeRepeatTimer.InitialRepeatDelay);
-        _harness.Hold(Right, NudgeRepeatTimer.FirstRepeatInterval - OneTick);
+        _harness.HoldFor(Right, NudgeRepeatTimer.InitialRepeatDelay);
+        _harness.HoldFor(Right, NudgeRepeatTimer.FirstRepeatInterval - OneTick);
         Assert.Equal(2 * NudgeStep, _harness.Sink.TotalDx);
 
         _harness.Hold(Right, OneTick);
@@ -79,9 +79,9 @@ public sealed class DesktopInputTranslatorNudgeTests
             (long)(NudgeRepeatTimer.FirstRepeatInterval.Ticks * NudgeRepeatTimer.RepeatIntervalShrinkFactor));
         _harness.Begin();
         _harness.Hold(Right, TimeSpan.Zero);
-        _harness.Hold(Right, NudgeRepeatTimer.InitialRepeatDelay);
-        _harness.Hold(Right, NudgeRepeatTimer.FirstRepeatInterval);
-        _harness.Hold(Right, secondInterval - OneTick);
+        _harness.HoldFor(Right, NudgeRepeatTimer.InitialRepeatDelay);
+        _harness.HoldFor(Right, NudgeRepeatTimer.FirstRepeatInterval);
+        _harness.HoldFor(Right, secondInterval - OneTick);
         Assert.Equal(3 * NudgeStep, _harness.Sink.TotalDx);
 
         _harness.Hold(Right, OneTick);
@@ -94,7 +94,7 @@ public sealed class DesktopInputTranslatorNudgeTests
     {
         _harness.Begin();
         _harness.Hold(Right, TimeSpan.Zero);
-        _harness.Hold(Right, HeldLongEnoughToReachMinimumInterval);
+        _harness.HoldFor(Right, HeldLongEnoughToReachMinimumInterval);
         _harness.Sink.CursorMoves.Clear();
 
         _harness.Hold(Right, NudgeRepeatTimer.MinimumRepeatInterval);
@@ -105,14 +105,43 @@ public sealed class DesktopInputTranslatorNudgeTests
     }
 
     [Fact]
-    public void Update_LongUpdateWhileNudgeHeld_PerformsEveryRepeatThatFellDue()
+    public void Update_LongerThanRepeatInterval_PerformsEveryRepeatThatFellDue()
+    {
+        var repeatsPerUpdate = (int)(DesktopInputTranslator.MaxUpdateElapsed / NudgeRepeatTimer.MinimumRepeatInterval);
+        _harness.Begin();
+        _harness.Hold(Right, TimeSpan.Zero);
+        _harness.HoldFor(Right, HeldLongEnoughToReachMinimumInterval);
+        _harness.Sink.CursorMoves.Clear();
+
+        _harness.Hold(Right, DesktopInputTranslator.MaxUpdateElapsed);
+
+        Assert.Equal([(repeatsPerUpdate * NudgeStep, 0)], _harness.Sink.CursorMoves);
+    }
+
+    [Fact]
+    public void Update_HugeElapsedWhileNudgeHeld_RepeatsNoMoreThanInMaxUpdateElapsed()
+    {
+        var repeatsPerUpdate = (int)(DesktopInputTranslator.MaxUpdateElapsed / NudgeRepeatTimer.MinimumRepeatInterval);
+        _harness.Begin();
+        _harness.Hold(Right, TimeSpan.Zero);
+        _harness.HoldFor(Right, HeldLongEnoughToReachMinimumInterval);
+        _harness.Sink.CursorMoves.Clear();
+
+        _harness.Hold(Right, TimeSpan.FromHours(1));
+
+        Assert.Equal([(repeatsPerUpdate * NudgeStep, 0)], _harness.Sink.CursorMoves);
+    }
+
+    [Fact]
+    public void Update_NegativeElapsedWhileNudgeHeld_DoesNotDelayNextRepeat()
     {
         _harness.Begin();
         _harness.Hold(Right, TimeSpan.Zero);
+        _harness.Hold(Right, -TimeSpan.FromSeconds(1));
 
-        _harness.Hold(Right, NudgeRepeatTimer.InitialRepeatDelay + NudgeRepeatTimer.FirstRepeatInterval);
+        _harness.HoldFor(Right, NudgeRepeatTimer.InitialRepeatDelay);
 
-        Assert.Equal([(NudgeStep, 0), (2 * NudgeStep, 0)], _harness.Sink.CursorMoves);
+        Assert.Equal(2 * NudgeStep, _harness.Sink.TotalDx);
     }
 
     [Fact]
@@ -122,7 +151,7 @@ public sealed class DesktopInputTranslatorNudgeTests
         _harness.Hold(Right, TimeSpan.Zero);
         _harness.Hold(None, TimeSpan.Zero);
 
-        _harness.Hold(None, HeldLongEnoughToReachMinimumInterval);
+        _harness.HoldFor(None, HeldLongEnoughToReachMinimumInterval);
 
         Assert.Equal(NudgeStep, _harness.Sink.TotalDx);
     }
@@ -132,12 +161,12 @@ public sealed class DesktopInputTranslatorNudgeTests
     {
         _harness.Begin();
         _harness.Hold(Right, TimeSpan.Zero);
-        _harness.Hold(Right, HeldLongEnoughToReachMinimumInterval);
+        _harness.HoldFor(Right, HeldLongEnoughToReachMinimumInterval);
         _harness.Hold(None, TimeSpan.Zero);
         _harness.Sink.CursorMoves.Clear();
 
         _harness.Hold(Right, TimeSpan.Zero);
-        _harness.Hold(Right, NudgeRepeatTimer.InitialRepeatDelay - OneTick);
+        _harness.HoldFor(Right, NudgeRepeatTimer.InitialRepeatDelay - OneTick);
 
         Assert.Equal([(NudgeStep, 0)], _harness.Sink.CursorMoves);
     }
@@ -148,22 +177,12 @@ public sealed class DesktopInputTranslatorNudgeTests
         var halfDelay = NudgeRepeatTimer.InitialRepeatDelay / 2;
         _harness.Begin();
         _harness.Hold(Right, TimeSpan.Zero);
-        _harness.Hold(Right, halfDelay);
+        _harness.HoldFor(Right, halfDelay);
         _harness.Hold(Right | Up, TimeSpan.Zero);
 
-        _harness.Hold(Right | Up, halfDelay);
+        _harness.HoldFor(Right | Up, halfDelay);
 
         Assert.Equal(2 * NudgeStep, _harness.Sink.TotalDx);
         Assert.Equal(-NudgeStep, _harness.Sink.TotalDy);
-    }
-
-    [Fact]
-    public void Update_NudgePressed_ElapsedTimeBeforePressDoesNotCountTowardRepeat()
-    {
-        _harness.Begin();
-
-        _harness.Hold(Right, HeldLongEnoughToReachMinimumInterval);
-
-        Assert.Equal(NudgeStep, _harness.Sink.TotalDx);
     }
 }
