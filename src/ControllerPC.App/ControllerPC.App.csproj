@@ -5,11 +5,16 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <ApplicationVisualStyles>false</ApplicationVisualStyles>
     <AssemblyName>ControllerPC</AssemblyName>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ControllerPC.App.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ControllerPC.Core\ControllerPC.Core.csproj" />
