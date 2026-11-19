@@ -55,6 +55,38 @@ internal sealed class ProfileEditor : UserControl
         };
     }
 
+    /// <summary>Raised just before either Trigger Override starts recording from the controller.</summary>
+    public event EventHandler? RecordingStarted
+    {
+        add
+        {
+            _entryEditor.RecordingStarted += value;
+            _exitEditor.RecordingStarted += value;
+        }
+
+        remove
+        {
+            _entryEditor.RecordingStarted -= value;
+            _exitEditor.RecordingStarted -= value;
+        }
+    }
+
+    /// <summary>Raised when a recording started from this editor ends.</summary>
+    public event EventHandler? RecordingFinished
+    {
+        add
+        {
+            _entryEditor.RecordingFinished += value;
+            _exitEditor.RecordingFinished += value;
+        }
+
+        remove
+        {
+            _entryEditor.RecordingFinished -= value;
+            _exitEditor.RecordingFinished -= value;
+        }
+    }
+
     /// <summary>
     /// Edits <paramref name="profile"/> in place. <paramref name="settings"/> supplies the Base Triggers and the
     /// "Switch to Profile" targets.

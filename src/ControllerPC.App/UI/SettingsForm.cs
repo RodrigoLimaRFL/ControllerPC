@@ -22,6 +22,7 @@ public sealed class SettingsForm : ClassicDialog
 
     private readonly AppSettings _settings;
     private readonly TabControl _tabs = new() { Location = new Point(EdgeMargin, EdgeMargin) };
+    private readonly ModeTriggersPanel _modeTriggersPanel;
     private readonly ProfilesPanel _profilesPanel;
 
     /// <param name="workingCopy">
@@ -38,12 +39,12 @@ public sealed class SettingsForm : ClassicDialog
         ShowInTaskbar = true;
         StartPosition = FormStartPosition.CenterScreen;
 
-        var modeTriggersPanel = new ModeTriggersPanel(workingCopy, controllerSource) { Location = new Point(EdgeMargin, EdgeMargin) };
+        _modeTriggersPanel = new ModeTriggersPanel(workingCopy, controllerSource) { Location = new Point(EdgeMargin, EdgeMargin) };
         _profilesPanel = new ProfilesPanel(workingCopy, controllerSource) { Location = new Point(EdgeMargin, EdgeMargin) };
-        _tabs.TabPages.AddRange([Page("Mode Triggers", modeTriggersPanel), Page("Profiles", _profilesPanel)]);
+        _tabs.TabPages.AddRange([Page("Mode Triggers", _modeTriggersPanel), Page("Profiles", _profilesPanel)]);
         _tabs.Size = new Size(
-            Math.Max(modeTriggersPanel.Width, _profilesPanel.Width) + TabChromeWidth,
-            Math.Max(modeTriggersPanel.Height, _profilesPanel.Height) + TabChromeHeight);
+            Math.Max(_modeTriggersPanel.Width, _profilesPanel.Width) + TabChromeWidth,
+            Math.Max(_modeTriggersPanel.Height, _profilesPanel.Height) + TabChromeHeight);
 
         // Base Triggers shown on the Profiles page may have changed on the Mode Triggers page.
         _tabs.SelectedIndexChanged += (_, _) => _profilesPanel.RefreshSelected();
@@ -67,6 +68,41 @@ public sealed class SettingsForm : ClassicDialog
     /// The argument is a deep copy of the edited settings that the caller may keep, save and apply.
     /// </summary>
     public event EventHandler<AppSettings>? SettingsApplied;
+
+    /// <summary>
+    /// Raised just before a Mode Trigger recording starts, from any editor in the window. The caller should stop
+    /// acting on controller input (trigger matching, Desktop Mode translation) until <see cref="RecordingFinished"/>.
+    /// </summary>
+    public event EventHandler? RecordingStarted
+    {
+        add
+        {
+            _modeTriggersPanel.RecordingStarted += value;
+            _profilesPanel.RecordingStarted += value;
+        }
+
+        remove
+        {
+            _modeTriggersPanel.RecordingStarted -= value;
+            _profilesPanel.RecordingStarted -= value;
+        }
+    }
+
+    /// <summary>Raised when a Mode Trigger recording ends, whether it was kept, cancelled or failed.</summary>
+    public event EventHandler? RecordingFinished
+    {
+        add
+        {
+            _modeTriggersPanel.RecordingFinished += value;
+            _profilesPanel.RecordingFinished += value;
+        }
+
+        remove
+        {
+            _modeTriggersPanel.RecordingFinished -= value;
+            _profilesPanel.RecordingFinished -= value;
+        }
+    }
 
     private static TabPage Page(string text, Control content)
     {
@@ -119,11 +155,7 @@ public sealed class SettingsForm : ClassicDialog
         return true;
     }
 
-    private string IssueList(IEnumerable<ValidationIssue> issues) =>
-        string.Join("\n", issues.Select(issue => Bullet + IssueText(issue)));
-
-    private string IssueText(ValidationIssue issue) =>
-        issue.ProfileId is { } id && _settings.FindProfile(id) is { } profile
-            ? $"Profile \"{profile.Name}\": {issue.Message}"
-            : issue.Message;
+    // Validator messages already name the Profile they concern.
+    private static string IssueList(IEnumerable<ValidationIssue> issues) =>
+        string.Join("\n", issues.Select(issue => Bullet + issue.Message));
 }

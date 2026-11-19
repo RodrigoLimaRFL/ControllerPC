@@ -5,12 +5,14 @@ using ControllerPC.Core.Triggers;
 namespace ControllerPC.App.UI;
 
 /// <summary>
-/// Records the Steps of a Mode Trigger from the first connected controller, showing them as they are recorded.
+/// Records the Steps of a Mode Trigger from the first controller on which a button is pressed, showing them as
+/// they are recorded.
 /// Finishes on "Stop", or by itself once nothing has been held for <see cref="AutoFinishIdle"/> after a Step.
 /// </summary>
 internal sealed class RecordTriggerDialog : ClassicDialog
 {
     private const int PollIntervalMilliseconds = 10;
+    private const string WaitingForControllerText = "Waiting for a controller...";
     private const int ClientWidth = 360;
     private const int ButtonsY = 214;
     private const int ContentWidth = ClientWidth - (2 * DialogMargin);
@@ -29,6 +31,9 @@ internal sealed class RecordTriggerDialog : ClassicDialog
         IntegralHeight = false,
         TabStop = false,
     };
+
+    // Per connected slot, the buttons held since the controller was first seen (not yet released).
+    private readonly Dictionary<int, ControllerButton> _heldBeforePress = [];
 
     private int? _slot;
 
@@ -51,7 +56,7 @@ internal sealed class RecordTriggerDialog : ClassicDialog
 
         Controls.AddRange([instructions, _controllerLabel, _heldLabel, _stepsList, stopButton, cancelButton]);
         _pollTimer.Tick += (_, _) => Poll();
-        ShowStatus("Waiting for a controller...", ControllerButton.None);
+        ShowStatus(WaitingForControllerText, ControllerButton.None);
         CompleteLayout(new Size(ClientWidth, ButtonsY + ClassicControls.ButtonHeight + DialogMargin));
     }
 
@@ -86,14 +91,20 @@ internal sealed class RecordTriggerDialog : ClassicDialog
         var now = _clock.Elapsed;
         if (_slot is not { } slot)
         {
-            StartWithFirstConnectedController(now);
+            WaitForFirstPress(now);
             return;
         }
 
-        var state = _controllerSource.Read(slot);
-        var held = state?.Buttons ?? ControllerButton.None;
-        _recorder.Update(held, now);
-        ShowStatus(state is null ? "Controller disconnected." : $"Recording from controller {slot + 1}.", held);
+        // While disconnected nothing is known about the buttons: feeding "nothing held" would end the Step in
+        // progress, so recording simply pauses until the controller is back.
+        if (_controllerSource.Read(slot) is not { } state)
+        {
+            ShowStatus($"Controller {slot + 1} disconnected; reconnect it to continue.", ControllerButton.None);
+            return;
+        }
+
+        _recorder.Update(state.Buttons, now);
+        ShowStatus(RecordingText(slot), state.Buttons);
         ShowSteps();
 
         if (_recorder.IsIdleFor(AutoFinishIdle, now))
@@ -102,19 +113,44 @@ internal sealed class RecordTriggerDialog : ClassicDialog
         }
     }
 
-    private void StartWithFirstConnectedController(TimeSpan now)
+    /// <summary>
+    /// Records from the first controller on which a button goes down. Buttons already held when a controller was
+    /// first seen do not count until released, so a pad resting with a button held is not picked.
+    /// </summary>
+    private void WaitForFirstPress(TimeSpan now)
     {
         for (var slot = 0; slot < _controllerSource.SlotCount; slot++)
         {
-            if (_controllerSource.Read(slot) is { } state)
+            if (_controllerSource.Read(slot) is not { } state)
+            {
+                _heldBeforePress.Remove(slot);
+                continue;
+            }
+
+            if (!_heldBeforePress.TryGetValue(slot, out var heldBefore))
+            {
+                _heldBeforePress[slot] = state.Buttons;
+                continue;
+            }
+
+            var stillHeld = heldBefore & state.Buttons;
+            _heldBeforePress[slot] = stillHeld;
+            if ((state.Buttons & ~stillHeld) != ControllerButton.None)
             {
                 _slot = slot;
-                _recorder.Start(state.Buttons, now);
-                ShowStatus($"Recording from controller {slot + 1}.", state.Buttons);
+                _recorder.Start(stillHeld, now);
+                _recorder.Update(state.Buttons, now);
+                ShowStatus(RecordingText(slot), state.Buttons);
                 return;
             }
         }
+
+        ShowStatus(
+            _heldBeforePress.Count == 0 ? WaitingForControllerText : "Press a button on the controller to record from.",
+            ControllerButton.None);
     }
+
+    private static string RecordingText(int slot) => $"Recording from controller {slot + 1}.";
 
     private void ShowStatus(string controllerText, ControllerButton held)
     {

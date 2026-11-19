@@ -87,6 +87,12 @@ internal sealed class ModeTriggerEditor : UserControl
         Edit(null);
     }
 
+    /// <summary>Raised just before the record dialog opens.</summary>
+    public event EventHandler? RecordingStarted;
+
+    /// <summary>Raised when the record dialog has closed, however it closed (always paired with <see cref="RecordingStarted"/>).</summary>
+    public event EventHandler? RecordingFinished;
+
     /// <summary>Edits <paramref name="trigger"/> in place; <c>null</c> shows nothing and disables editing.</summary>
     public void Edit(ModeTrigger? trigger)
     {
@@ -182,6 +188,8 @@ internal sealed class ModeTriggerEditor : UserControl
         _loading = false;
     }
 
+    // Writes every timing field, not just the one touched: a stored value outside the UI range was clamped on
+    // display, and once the user edits anything the Mode Trigger should match what they see.
     private void StoreTiming()
     {
         if (_loading || _trigger is null)
@@ -203,7 +211,18 @@ internal sealed class ModeTriggerEditor : UserControl
         }
 
         using var dialog = new RecordTriggerDialog(_controllerSource);
-        if (dialog.ShowDialog(FindForm()) == DialogResult.OK && dialog.RecordedSteps.Count > 0)
+        DialogResult result;
+        RecordingStarted?.Invoke(this, EventArgs.Empty);
+        try
+        {
+            result = dialog.ShowDialog(FindForm());
+        }
+        finally
+        {
+            RecordingFinished?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (result == DialogResult.OK && dialog.RecordedSteps.Count > 0)
         {
             _trigger.Steps = dialog.RecordedSteps;
             ShowSteps(selectedIndex: 0);
