@@ -5,11 +5,13 @@ using ControllerPC.Core.Triggers;
 namespace ControllerPC.App.UI;
 
 /// <summary>
-/// Records the Steps of a Mode Trigger from the first controller on which a button is pressed, showing them as
-/// they are recorded.
-/// Finishes on "Stop", or by itself once nothing has been held for <see cref="AutoFinishIdle"/> after a Step.
+/// Records Chords from the first controller on which a button is pressed, showing them as they are recorded: every
+/// group of buttons held between moments of nothing held becomes one Chord (see <see cref="TriggerRecorder"/>).
+/// Records the Steps of a Mode Trigger (<see cref="ForModeTrigger"/>) or a single Chord (<see cref="ForChord"/>).
+/// Finishes on "Stop", once the single Chord is recorded, or by itself once nothing has been held for
+/// <see cref="AutoFinishIdle"/> after a Chord.
 /// </summary>
-internal sealed class RecordTriggerDialog : ClassicDialog
+internal sealed class RecordChordsDialog : ClassicDialog
 {
     private const int PollIntervalMilliseconds = 10;
     private const string WaitingForControllerText = "Waiting for a controller...";
@@ -35,17 +37,20 @@ internal sealed class RecordTriggerDialog : ClassicDialog
     // Per connected slot, the buttons held since the controller was first seen (not yet released).
     private readonly Dictionary<int, ControllerButton> _heldBeforePress = [];
 
+    // Finishes as soon as this many Chords are recorded; null for no limit.
+    private readonly int? _chordLimit;
+
     private int? _slot;
 
-    public RecordTriggerDialog(IControllerSource controllerSource)
-        : base("Record Mode Trigger")
+    private RecordChordsDialog(IControllerSource controllerSource, string title, string instructionText, int? chordLimit)
+        : base(title)
     {
         _controllerSource = controllerSource;
+        _chordLimit = chordLimit;
 
         var instructions = new Label
         {
-            Text = "Press the Chord of each Step on the controller, releasing every button between Steps. "
-                + $"Recording stops by itself {AutoFinishIdle.TotalSeconds:0} seconds after the last release.",
+            Text = instructionText,
             Location = new Point(DialogMargin, DialogMargin),
             Size = new Size(ContentWidth, 45),
         };
@@ -60,8 +65,46 @@ internal sealed class RecordTriggerDialog : ClassicDialog
         CompleteLayout(new Size(ClientWidth, ButtonsY + ClassicControls.ButtonHeight + DialogMargin));
     }
 
-    /// <summary>The recorded Steps; empty when the dialog was cancelled or nothing was recorded.</summary>
-    public List<Chord> RecordedSteps { get; private set; } = [];
+    /// <summary>The recorded Chords; empty when the dialog was cancelled or nothing was recorded.</summary>
+    public List<Chord> RecordedChords { get; private set; } = [];
+
+    /// <summary>Records the Steps of a Mode Trigger, one Chord per Step.</summary>
+    public static RecordChordsDialog ForModeTrigger(IControllerSource controllerSource) =>
+        new(
+            controllerSource,
+            "Record Mode Trigger",
+            "Press the Chord of each Step on the controller, releasing every button between Steps. "
+            + $"Recording stops by itself {AutoFinishIdle.TotalSeconds:0} seconds after the last release.",
+            chordLimit: null);
+
+    /// <summary>Records one Chord, finishing as soon as its buttons are released.</summary>
+    public static RecordChordsDialog ForChord(IControllerSource controllerSource) =>
+        new(
+            controllerSource,
+            "Record Chord",
+            "Hold the buttons of the Chord together on the controller, then release them.",
+            chordLimit: 1);
+
+    /// <summary>
+    /// Shows the dialog modally and returns the recorded Chords (empty when cancelled). <paramref name="onStarted"/>
+    /// runs just before it opens and <paramref name="onFinished"/> always runs after it closes, even if
+    /// <paramref name="onStarted"/> throws, so a pause they bracket is always ended.
+    /// </summary>
+    public List<Chord> Record(IWin32Window? owner, Action onStarted, Action onFinished)
+    {
+        DialogResult result;
+        try
+        {
+            onStarted();
+            result = ShowDialog(owner);
+        }
+        finally
+        {
+            onFinished();
+        }
+
+        return result == DialogResult.OK ? RecordedChords : [];
+    }
 
     protected override void OnShown(EventArgs e)
     {
@@ -107,7 +150,7 @@ internal sealed class RecordTriggerDialog : ClassicDialog
         ShowStatus(RecordingText(slot), state.Buttons);
         ShowSteps();
 
-        if (_recorder.IsIdleFor(AutoFinishIdle, now))
+        if (_chordLimit is { } limit && _recorder.Steps.Count >= limit || _recorder.IsIdleFor(AutoFinishIdle, now))
         {
             Finish();
         }
@@ -176,7 +219,8 @@ internal sealed class RecordTriggerDialog : ClassicDialog
     private void Finish()
     {
         _pollTimer.Stop();
-        RecordedSteps = _slot is null ? [] : [.. _recorder.Steps];
+        IEnumerable<Chord> recorded = _slot is null ? [] : _recorder.Steps;
+        RecordedChords = [.. recorded.Take(_chordLimit ?? int.MaxValue)];
         DialogResult = DialogResult.OK;
     }
 }

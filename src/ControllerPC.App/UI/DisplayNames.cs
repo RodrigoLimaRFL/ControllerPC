@@ -119,6 +119,10 @@ internal static class DisplayNames
 
     public static string ForRightStickRole(RightStickRole role) => role.ToString();
 
+    /// <summary>A Chord Binding as "LB + A → Key Combination: Ctrl+C".</summary>
+    public static string ForChordBinding(ChordBinding binding, IEnumerable<Profile> profiles) =>
+        $"{ForChord(binding.Chord)} → {ForAction(binding.Action, profiles)}";
+
     public static string ForActionKind(ActionKind kind) => kind switch
     {
         ActionKind.None => "None",

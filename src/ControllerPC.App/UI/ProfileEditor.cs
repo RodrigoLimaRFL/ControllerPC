@@ -4,7 +4,7 @@ using ControllerPC.Core.Settings;
 
 namespace ControllerPC.App.UI;
 
-/// <summary>Edits one Profile in place: Bindings, movement, and its Entry and Exit Trigger Overrides.</summary>
+/// <summary>Edits one Profile in place: Bindings, Chord Bindings, movement, and its Entry and Exit Trigger Overrides.</summary>
 internal sealed class ProfileEditor : UserControl
 {
     private const int PagePadding = 8;
@@ -14,7 +14,7 @@ internal sealed class ProfileEditor : UserControl
     private const int TabChromeHeight = 2 * PagePadding + 30;
 
     private readonly TabControl _tabs = new() { Location = Point.Empty };
-    private readonly BindingsEditor _bindingsEditor = new() { Location = new Point(PagePadding, PagePadding) };
+    private readonly BindingsEditor _bindingsEditor;
     private readonly MovementEditor _movementEditor = new() { Location = new Point(PagePadding, PagePadding) };
     private readonly TriggerOverrideEditor _entryEditor;
     private readonly TriggerOverrideEditor _exitEditor;
@@ -24,6 +24,7 @@ internal sealed class ProfileEditor : UserControl
     public ProfileEditor(IControllerSource controllerSource)
     {
         AutoScaleMode = AutoScaleMode.Inherit;
+        _bindingsEditor = new BindingsEditor(controllerSource) { Location = new Point(PagePadding, PagePadding) };
         _entryEditor = new TriggerOverrideEditor("Entry Trigger", controllerSource) { Location = new Point(PagePadding, PagePadding) };
         _exitEditor = new TriggerOverrideEditor("Exit Trigger", controllerSource) { Location = new Point(PagePadding, PagePadding) };
 
@@ -55,17 +56,21 @@ internal sealed class ProfileEditor : UserControl
         };
     }
 
-    /// <summary>Raised just before either Trigger Override starts recording from the controller.</summary>
+    /// <summary>
+    /// Raised just before a Trigger Override or the Chord of a Chord Binding starts recording from the controller.
+    /// </summary>
     public event EventHandler? RecordingStarted
     {
         add
         {
+            _bindingsEditor.RecordingStarted += value;
             _entryEditor.RecordingStarted += value;
             _exitEditor.RecordingStarted += value;
         }
 
         remove
         {
+            _bindingsEditor.RecordingStarted -= value;
             _entryEditor.RecordingStarted -= value;
             _exitEditor.RecordingStarted -= value;
         }
@@ -76,12 +81,14 @@ internal sealed class ProfileEditor : UserControl
     {
         add
         {
+            _bindingsEditor.RecordingFinished += value;
             _entryEditor.RecordingFinished += value;
             _exitEditor.RecordingFinished += value;
         }
 
         remove
         {
+            _bindingsEditor.RecordingFinished -= value;
             _entryEditor.RecordingFinished -= value;
             _exitEditor.RecordingFinished -= value;
         }
