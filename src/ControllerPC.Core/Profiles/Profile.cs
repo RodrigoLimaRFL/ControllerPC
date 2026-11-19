@@ -19,14 +19,6 @@ public sealed class Profile
     /// </summary>
     public Dictionary<ControllerButton, ButtonAction> Bindings { get; set; } = [];
 
-    public static readonly TimeSpan DefaultChordWait = TimeSpan.FromMilliseconds(75);
-
-    public static readonly TimeSpan MaxChordWait = TimeSpan.FromMilliseconds(500);
-
-    public List<ChordBinding> ChordBindings { get; set; } = [];
-
-    public TimeSpan ChordWait { get; set; } = DefaultChordWait;
-
     public RightStickRole RightStickRole { get; set; } = RightStickRole.Scroll;
 
     public MovementTuning Tuning { get; set; } = new();
