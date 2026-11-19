@@ -16,6 +16,7 @@ public abstract class ClassicDialog : Form
         AutoScaleDimensions = DesignFontSize;
         AutoScaleMode = AutoScaleMode.Font;
         Text = title;
+        Icon = AppIcon.Shared;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;

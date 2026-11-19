@@ -64,6 +64,13 @@ To remove it (add `-RemoveSettings` to also delete your settings):
 powershell -ExecutionPolicy Bypass -File scripts/uninstall.ps1
 ```
 
+The app icon (`src/ControllerPC.App/Assets/ControllerPC.ico`) is generated from the same drawing code as the tray
+icon. After changing that drawing, regenerate it:
+
+```bash
+dotnet run --project tools/ControllerPC.IconGenerator -- src/ControllerPC.App/Assets/ControllerPC.ico
+```
+
 ## Publish
 
 ```bash
