@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Regenerates src/ControllerPC.App/Assets/ControllerPC.ico from the app's own ControllerGlyph. Not part of the
+       solution build: run it by hand after changing the glyph (see Program.cs). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ControllerPC.App\ControllerPC.App.csproj" />
+  </ItemGroup>
+
+</Project>
