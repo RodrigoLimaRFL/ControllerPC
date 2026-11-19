@@ -13,10 +13,12 @@ internal sealed class ChordBindingDialog : ClassicDialog
     private const int GroupPadding = 10;
     private const int GroupTop = 22;
     private const int GroupGap = 8;
+    private const int NoActionHintHeight = 34;
 
     private readonly IControllerSource _controllerSource;
     private readonly ChordPicker _chordPicker = new() { Location = new Point(GroupPadding, GroupTop) };
     private readonly ActionEditor _actionEditor = new() { Location = new Point(GroupPadding, GroupTop) };
+    private readonly Label _noActionHint;
     private readonly Button _okButton;
 
     /// <param name="title">Window title, e.g. "Add Chord Binding".</param>
@@ -39,13 +41,21 @@ internal sealed class ChordBindingDialog : ClassicDialog
             recordButton.Bottom + GroupPadding);
         chordGroup.Controls.AddRange([_chordPicker, recordButton, hint]);
 
+        // A Chord Binding acts on its buttons even without an Action, which is easy to miss.
+        _noActionHint = new Label
+        {
+            Text = "With the Action \"None\" the Chord still delays its buttons by the Chord Wait, and their own "
+                + "Bindings do not act while the Chord is held.",
+            Location = new Point(GroupPadding, _actionEditor.Bottom + GroupGap),
+            Size = new Size(_chordPicker.Width, NoActionHintHeight),
+        };
         var actionGroup = ClassicControls.Group(
             "Action",
             DialogMargin,
             chordGroup.Bottom + GroupGap,
             chordGroup.Width,
-            _actionEditor.Height + GroupTop + GroupPadding);
-        actionGroup.Controls.Add(_actionEditor);
+            _noActionHint.Bottom + GroupPadding);
+        actionGroup.Controls.AddRange([_actionEditor, _noActionHint]);
 
         var clientWidth = chordGroup.Right + DialogMargin;
         var buttonsY = actionGroup.Bottom + DialogMargin;
@@ -61,7 +71,9 @@ internal sealed class ChordBindingDialog : ClassicDialog
         _chordPicker.SetChord(binding.Chord);
         _actionEditor.Display(binding.Action, profiles);
         _chordPicker.ChordChanged += (_, _) => UpdateOkButton();
+        _actionEditor.ActionChanged += (_, _) => UpdateNoActionHint();
         UpdateOkButton();
+        UpdateNoActionHint();
         CompleteLayout(new Size(clientWidth, buttonsY + ClassicControls.ButtonHeight + DialogMargin));
     }
 
@@ -87,6 +99,8 @@ internal sealed class ChordBindingDialog : ClassicDialog
             UpdateOkButton();
         }
     }
+
+    private void UpdateNoActionHint() => _noActionHint.Visible = _actionEditor.Action is NoAction;
 
     private void UpdateOkButton() =>
         _okButton.Enabled = ControllerButtons.Split(_chordPicker.Chord.Buttons).Count() >= MinimumChordButtons;
