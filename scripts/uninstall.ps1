@@ -28,9 +28,19 @@ if (Get-Process -Name $appName -ErrorAction SilentlyContinue) {
     throw "$appName is running. Quit it from its tray icon, then run this script again."
 }
 
-$installPath = [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
+# Resolve against PowerShell's current location, exactly as install.ps1 does.
+$installPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InstallDir).TrimEnd('\')
 $exePath = Join-Path $installPath $exeName
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('Programs')) "$appName.lnk"
+
+# Remove the exe before the shortcut, so a locked exe never leaves an install without its shortcut.
+if (Test-Path -LiteralPath $exePath) {
+    Remove-Item -LiteralPath $exePath -Force
+    Write-Host "Removed $exePath"
+}
+else {
+    Write-Host "No $exeName found in $installPath"
+}
 
 if (Test-Path -LiteralPath $shortcutPath) {
     $target = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath).TargetPath
@@ -42,14 +52,6 @@ if (Test-Path -LiteralPath $shortcutPath) {
     else {
         Write-Host "Kept Start Menu shortcut: it points to '$target', not this install."
     }
-}
-
-if (Test-Path -LiteralPath $exePath) {
-    Remove-Item -LiteralPath $exePath -Force
-    Write-Host "Removed $exePath"
-}
-else {
-    Write-Host "No $exeName found in $installPath"
 }
 
 if ((Test-Path -LiteralPath $installPath) -and -not (Get-ChildItem -LiteralPath $installPath -Force)) {

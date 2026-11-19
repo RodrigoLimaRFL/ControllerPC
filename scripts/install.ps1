@@ -18,6 +18,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Resolve against PowerShell's current location so a relative -InstallDir works and the shortcut gets an absolute target.
+$InstallDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InstallDir).TrimEnd('\')
+
 $appName = 'ControllerPC'
 $exeName = "$appName.exe"
 $repoRoot = Split-Path -Parent $PSScriptRoot
