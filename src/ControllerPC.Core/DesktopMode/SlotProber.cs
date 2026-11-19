@@ -39,6 +39,15 @@ internal sealed class SlotProber
             return null;
         }
 
+        return Probe(slot, now);
+    }
+
+    /// <summary>
+    /// Reads <paramref name="slot"/> even if it was found disconnected recently. For rare, user-initiated actions
+    /// only, where finding a just-connected controller matters more than the cost of the read.
+    /// </summary>
+    public ControllerState? Probe(int slot, TimeSpan now)
+    {
         var state = _source.Read(slot);
         _connected[slot] = state is not null;
         _foundDisconnectedAt[slot] = state is null ? now : null;
