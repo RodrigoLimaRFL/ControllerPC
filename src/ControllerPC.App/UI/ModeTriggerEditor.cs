@@ -212,9 +212,11 @@ internal sealed class ModeTriggerEditor : UserControl
 
         using var dialog = new RecordTriggerDialog(_controllerSource);
         DialogResult result;
-        RecordingStarted?.Invoke(this, EventArgs.Empty);
+
+        // Inside the try: even if a RecordingStarted handler throws, RecordingFinished still follows it.
         try
         {
+            RecordingStarted?.Invoke(this, EventArgs.Empty);
             result = dialog.ShowDialog(FindForm());
         }
         finally
