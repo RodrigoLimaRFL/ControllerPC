@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace ControllerPC.Core.Output;
 
@@ -9,12 +10,19 @@ namespace ControllerPC.Core.Output;
 public sealed record KeyCombination
 {
     public KeyCombination(IEnumerable<ushort> virtualKeys)
+        : this([.. virtualKeys])
     {
-        VirtualKeys = [.. virtualKeys];
+    }
+
+    [JsonConstructor]
+    public KeyCombination(ImmutableArray<ushort> virtualKeys)
+    {
+        VirtualKeys = virtualKeys.IsDefault ? [] : virtualKeys;
     }
 
     public ImmutableArray<ushort> VirtualKeys { get; }
 
+    [JsonIgnore]
     public bool IsEmpty => VirtualKeys.IsEmpty;
 
     public bool Equals(KeyCombination? other) =>

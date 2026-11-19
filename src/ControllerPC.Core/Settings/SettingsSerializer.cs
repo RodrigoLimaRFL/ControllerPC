@@ -1,6 +1,9 @@
 namespace ControllerPC.Core.Settings;
 
-/// <summary>Converts <see cref="AppSettings"/> to and from indented, human-readable JSON.</summary>
+/// <summary>
+/// Converts <see cref="AppSettings"/> to and from indented, human-readable JSON. Enums (including the
+/// <c>[Flags]</c> <see cref="Controller.ControllerButton"/> in Chords and Binding keys) are written as names.
+/// </summary>
 public static class SettingsSerializer
 {
     public static string Serialize(AppSettings settings) => throw new NotImplementedException();
