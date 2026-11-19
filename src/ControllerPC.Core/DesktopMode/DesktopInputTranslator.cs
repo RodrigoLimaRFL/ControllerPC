@@ -20,7 +20,19 @@ namespace ControllerPC.Core.DesktopMode;
 /// <item>Nudge Actions move once on press, then repeat while held after a delay, accelerating (named constants).</item>
 /// <item>Profile switch Actions are returned from <see cref="Update"/> once per press; the caller acts on them after
 /// <see cref="Update"/> returns.</item>
-/// <item>Buttons held when <see cref="Begin"/> is called are ignored until released.</item>
+/// <item>Chord buttons, the buttons used in any of the Profile's Chord Bindings, wait before performing their own
+/// Binding: it is pressed once the button has been held for the Profile's Chord Wait, or tapped (pressed and released
+/// in the same update; a Nudge moves one step, a Profile switch fires once) when the button is released sooner.
+/// A Chord Wait of zero performs it at once. Other buttons perform their Binding at once, as always.</item>
+/// <item>A Chord Binding becomes active when a press completes its whole Chord. That cancels the waiting Bindings of its
+/// buttons, releases those already performed (e.g. a left click held for a drag), and releases any active Chord Binding
+/// that is a strict subset of it; a Chord Binding that is a strict subset of an active one does not activate. Chord
+/// Bindings of equal size that overlap can both be active. Its Action is held until any of its buttons is released.
+/// The buttons of an activated Chord are consumed: they perform no Binding of their own until released and pressed
+/// again.</item>
+/// <item>Chord Bindings and the Chord Wait are read when <see cref="Begin"/> is called; the Chord Wait is timed with
+/// the clamped <c>elapsed</c>.</item>
+/// <item>Buttons held when <see cref="Begin"/> is called are ignored until released, and cannot complete a Chord.</item>
 /// <item><see cref="Update"/> before <see cref="Begin"/> (or after <see cref="ReleaseAll"/>) does nothing.</item>
 /// </list>
 /// Time is passed as <c>elapsed</c> since the previous update because movement integrates speed over time.
@@ -39,11 +51,15 @@ public sealed class DesktopInputTranslator
     private readonly CursorMover _cursor;
     private readonly Scroller _scroller;
 
-    // The Action each held button produced when pressed, so its release matches its press
-    // even if the Profile's Bindings are edited in between.
+    private readonly PendingSingleBindings _pending = new();
+    private readonly ChordBindingResolver _chordBindings = new();
+
+    // The Action each held button (or active Chord Binding, keyed by its whole Chord) produced when pressed, so its
+    // release matches its press even if the Profile's Bindings are edited in between.
     private readonly Dictionary<ControllerButton, ButtonAction> _heldActions = [];
 
     private Profile? _profile;
+    private TimeSpan _chordWait;
 
     public DesktopInputTranslator(IInputSink sink)
     {
@@ -58,13 +74,16 @@ public sealed class DesktopInputTranslator
     {
         ReleaseAll();
         _buttonEdges.Begin(heldAtStart);
+        _chordBindings.Begin(profile.ChordBindings);
+        _chordWait = profile.ChordWait;
         _profile = profile;
     }
 
     /// <summary>
     /// Processes one poll of the Driving Controller; <paramref name="elapsed"/> is the time since the previous update.
-    /// Returns the Profile switch Action pressed during this update, if any (the first one, in
-    /// <see cref="ControllerButtons.All"/> order).
+    /// Returns the first Profile switch Action performed during this update, if any. They are performed in this order:
+    /// taps of released Chord buttons, presses of other buttons, Chord Bindings that became active, then Chord buttons
+    /// whose Chord Wait ran out; buttons within each in <see cref="ControllerButtons.All"/> order.
     /// </summary>
     public ProfileSwitchAction? Update(ControllerState state, TimeSpan elapsed)
     {
@@ -76,20 +95,17 @@ public sealed class DesktopInputTranslator
         var boundedElapsed = TimeSpan.FromTicks(Math.Clamp(elapsed.Ticks, 0, MaxUpdateElapsed.Ticks));
         var edges = _buttonEdges.Update(state.Buttons);
 
-        // Releases go first so that a Binding let go in the same poll another is pressed is fully up before
-        // the new one goes down; held Nudges advance before new presses so a fresh press does not repeat at once.
-        foreach (var button in ControllerButtons.Split(edges.Released))
-        {
-            ReleaseBinding(button);
-        }
-
+        // Releases go first so that a Binding let go in the same poll another is pressed is fully up before the new one
+        // goes down; held Nudges and waiting buttons advance before new presses so a fresh press does not count this
+        // update's time.
+        var profileSwitch = ReleaseButtons(edges.Released, _profile);
         _nudges.Advance(boundedElapsed);
-
-        ProfileSwitchAction? profileSwitch = null;
-        foreach (var button in ControllerButtons.Split(edges.Pressed))
+        _pending.Advance(boundedElapsed);
+        profileSwitch = KeepFirst(profileSwitch, PressButtons(edges.Pressed, _profile));
+        profileSwitch = KeepFirst(profileSwitch, ActivateChordBindings(edges, _profile));
+        foreach (var button in _pending.TakeDue(_chordWait))
         {
-            var pressedSwitch = PressBinding(button, _profile);
-            profileSwitch ??= pressedSwitch;
+            profileSwitch = KeepFirst(profileSwitch, PressAction(button, _profile.GetAction(button), _profile));
         }
 
         MoveWithSticks(state, _profile, boundedElapsed);
@@ -101,16 +117,85 @@ public sealed class DesktopInputTranslator
     {
         _heldOutput.ReleaseAll();
         _heldActions.Clear();
+        _pending.Clear();
+        _chordBindings.Clear();
         _nudges.Clear();
         _cursor.Reset();
         _scroller.Reset();
         _profile = null;
     }
 
-    /// <returns>The Profile switch Action bound to <paramref name="button"/>, if that is what it is bound to.</returns>
-    private ProfileSwitchAction? PressBinding(ControllerButton button, Profile profile)
+    private ProfileSwitchAction? ReleaseButtons(ControllerButton released, Profile profile)
     {
-        var action = profile.GetAction(button);
+        foreach (var chordBinding in _chordBindings.Release(released))
+        {
+            ReleaseAction(chordBinding.Chord.Buttons);
+        }
+
+        ProfileSwitchAction? profileSwitch = null;
+        foreach (var button in ControllerButtons.Split(released))
+        {
+            if (_pending.Remove(button))
+            {
+                // Let go within the Chord Wait: a tap.
+                profileSwitch = KeepFirst(profileSwitch, PressAction(button, profile.GetAction(button), profile));
+            }
+
+            // A consumed button holds nothing of its own, so this releases nothing for it.
+            ReleaseAction(button);
+        }
+
+        return profileSwitch;
+    }
+
+    private ProfileSwitchAction? PressButtons(ControllerButton pressed, Profile profile)
+    {
+        ProfileSwitchAction? profileSwitch = null;
+        foreach (var button in ControllerButtons.Split(pressed))
+        {
+            if ((button & _chordBindings.ChordButtons) != ControllerButton.None)
+            {
+                _pending.Add(button);
+            }
+            else
+            {
+                profileSwitch = KeepFirst(profileSwitch, PressAction(button, profile.GetAction(button), profile));
+            }
+        }
+
+        return profileSwitch;
+    }
+
+    private ProfileSwitchAction? ActivateChordBindings(ButtonEdges edges, Profile profile)
+    {
+        ProfileSwitchAction? profileSwitch = null;
+        foreach (var activation in _chordBindings.Activate(edges.Held, edges.Pressed))
+        {
+            foreach (var displaced in activation.Displaced)
+            {
+                ReleaseAction(displaced.Chord.Buttons);
+            }
+
+            var chord = activation.Activated.Chord.Buttons;
+            foreach (var button in ControllerButtons.Split(chord))
+            {
+                _pending.Remove(button);
+                ReleaseAction(button);
+            }
+
+            profileSwitch = KeepFirst(profileSwitch, PressAction(chord, activation.Activated.Action, profile));
+        }
+
+        return profileSwitch;
+    }
+
+    /// <summary>
+    /// Presses <paramref name="action"/> for <paramref name="key"/> (one button, or a whole Chord) and keeps it held
+    /// until <see cref="ReleaseAction"/>.
+    /// </summary>
+    /// <returns><paramref name="action"/> when it is a Profile switch, which is performed once instead of held.</returns>
+    private ProfileSwitchAction? PressAction(ControllerButton key, ButtonAction action, Profile profile)
+    {
         switch (action)
         {
             case MouseButtonAction mouse:
@@ -120,7 +205,7 @@ public sealed class DesktopInputTranslator
                 _heldOutput.PressKeys(keys.Keys);
                 break;
             case NudgeAction nudge:
-                _nudges.Press(button, nudge.Direction, profile.Tuning.NudgeStep);
+                _nudges.Press(key, nudge.Direction, profile.Tuning.NudgeStep);
                 break;
             case ProfileSwitchAction profileSwitch:
                 return profileSwitch;
@@ -128,13 +213,13 @@ public sealed class DesktopInputTranslator
                 return null;
         }
 
-        _heldActions[button] = action;
+        _heldActions[key] = action;
         return null;
     }
 
-    private void ReleaseBinding(ControllerButton button)
+    private void ReleaseAction(ControllerButton key)
     {
-        if (!_heldActions.Remove(button, out var action))
+        if (!_heldActions.Remove(key, out var action))
         {
             return;
         }
@@ -148,10 +233,13 @@ public sealed class DesktopInputTranslator
                 _heldOutput.ReleaseKeys(keys.Keys);
                 break;
             case NudgeAction:
-                _nudges.Release(button);
+                _nudges.Release(key);
                 break;
         }
     }
+
+    /// <summary>Keeps the first Profile switch of an update; unlike <c>??=</c>, the second argument is always evaluated.</summary>
+    private static ProfileSwitchAction? KeepFirst(ProfileSwitchAction? first, ProfileSwitchAction? next) => first ?? next;
 
     private void MoveWithSticks(ControllerState state, Profile profile, TimeSpan elapsed)
     {

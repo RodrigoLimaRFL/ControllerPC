@@ -41,6 +41,13 @@ internal static class ParsedSettingsCheck
             RequireAction(Require(action, "a Binding's Action"));
         }
 
+        foreach (var chordBinding in Require(profile.ChordBindings, "a Profile's Chord Bindings"))
+        {
+            var binding = Require(chordBinding, "a Chord Binding");
+            RequireKnownButtons(binding.Chord.Buttons, "a Chord Binding");
+            RequireAction(Require(binding.Action, "a Chord Binding's Action"));
+        }
+
         if (profile.EntryTriggerOverride is not null)
         {
             RequireTrigger(profile.EntryTriggerOverride, "an Entry Trigger Override");
