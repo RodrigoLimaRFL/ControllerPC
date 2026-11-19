@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using ControllerPC.Core.Controller;
 
 namespace ControllerPC.Core.Triggers;
@@ -12,18 +13,17 @@ namespace ControllerPC.Core.Triggers;
 /// </remarks>
 public sealed class TriggerRecorder
 {
-    private readonly List<Chord> _steps = [];
+    private ImmutableList<Chord> _steps = [];
     private ControllerButton _ignored;
     private ControllerButton _currentGroup;
-    private TimeSpan _nothingHeldSince;
+    private TimeSpan _lastGroupReleasedAt;
 
     /// <summary>Starts a new recording, discarding any previous one. Buttons held right now are ignored until released.</summary>
     public void Start(ControllerButton heldNow, TimeSpan now)
     {
-        _steps.Clear();
+        _steps = [];
         _ignored = heldNow;
         _currentGroup = ControllerButton.None;
-        _nothingHeldSince = now;
     }
 
     /// <summary>Feeds the currently held buttons.</summary>
@@ -40,18 +40,21 @@ public sealed class TriggerRecorder
 
         if (_currentGroup != ControllerButton.None)
         {
-            _steps.Add(new Chord(_currentGroup));
+            _steps = _steps.Add(new Chord(_currentGroup));
             _currentGroup = ControllerButton.None;
-            _nothingHeldSince = now;
+            _lastGroupReleasedAt = now;
         }
     }
 
-    /// <summary>The Steps recorded so far (completed groups only).</summary>
-    public IReadOnlyList<Chord> Steps => _steps.AsReadOnly();
+    /// <summary>
+    /// The Steps recorded so far (completed groups only), as a snapshot that later updates and <see cref="Start"/>
+    /// do not change.
+    /// </summary>
+    public IReadOnlyList<Chord> Steps => _steps;
 
     /// <summary>True when at least one Step was recorded and nothing has been held for at least <paramref name="idle"/>.</summary>
     public bool IsIdleFor(TimeSpan idle, TimeSpan now) =>
         _steps.Count > 0
         && _currentGroup == ControllerButton.None
-        && now - _nothingHeldSince >= idle;
+        && now - _lastGroupReleasedAt >= idle;
 }

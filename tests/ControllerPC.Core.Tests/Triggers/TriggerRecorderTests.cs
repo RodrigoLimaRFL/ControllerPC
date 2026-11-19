@@ -130,6 +130,33 @@ public class TriggerRecorderTests
     }
 
     [Fact]
+    public void Steps_IsNotAffectedByLaterStart()
+    {
+        var recorder = StartedRecorder();
+        recorder.Update(A, Ms(0));
+        recorder.Update(None, Ms(100));
+        var recorded = recorder.Steps;
+
+        recorder.Start(None, Ms(200));
+
+        Assert.Equal([new Chord(A)], recorded);
+    }
+
+    [Fact]
+    public void Steps_IsNotAffectedByLaterUpdates()
+    {
+        var recorder = StartedRecorder();
+        recorder.Update(A, Ms(0));
+        recorder.Update(None, Ms(100));
+        var recorded = recorder.Steps;
+
+        recorder.Update(B, Ms(200));
+        recorder.Update(None, Ms(300));
+
+        Assert.Equal([new Chord(A)], recorded);
+    }
+
+    [Fact]
     public void Start_DiscardsGroupInProgress()
     {
         var recorder = StartedRecorder();
