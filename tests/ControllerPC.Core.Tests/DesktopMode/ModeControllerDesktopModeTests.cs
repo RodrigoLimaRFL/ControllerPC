@@ -1,6 +1,7 @@
 using ControllerPC.Core.Controller;
 using ControllerPC.Core.Output;
 using ControllerPC.Core.Profiles;
+using ControllerPC.Core.Triggers;
 using static ControllerPC.Core.Tests.DesktopMode.ModeControllerHarness;
 using static ControllerPC.Core.Tests.Fakes.RecordingInputSink;
 
@@ -114,6 +115,20 @@ public sealed class ModeControllerDesktopModeTests
         _harness.Hold(0, ExitChord);
 
         Assert.Empty(_harness.Sink.KeyCalls);
+    }
+
+    [Fact]
+    public void Tick_ExitTriggerUsesAChordButton_ItsBindingIsNotPerformed()
+    {
+        _harness.Main.Bindings[ControllerButton.Back] = new MouseButtonAction(MouseButton.Middle);
+        _harness.Main.ChordBindings.Add(new ChordBinding { Chord = new Chord(ControllerButton.Back | A) });
+        _harness.Controller.ApplySettings(_harness.Settings, _harness.Now);
+        _harness.Hold(0, ControllerButton.Back);
+
+        _harness.Hold(0, ExitChord);
+
+        Assert.False(_harness.Controller.IsDesktopModeActive);
+        Assert.Empty(_harness.Sink.ButtonEvents);
     }
 
     [Fact]

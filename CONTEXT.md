@@ -54,6 +54,13 @@ _Avoid_: active controller, main pad
 The assignment of an Action to one digital controller button (including LT/RT treated as buttons and each D-pad direction) while in Desktop Mode.
 _Avoid_: mapping, keybind
 
+**Chord Binding**:
+The assignment of an Action to a Chord of two or more buttons, active while the whole Chord is held in Desktop Mode.
+_Avoid_: combo binding, combination
+
+**Chord Wait**:
+The short, per-Profile delay before a button that belongs to any Chord Binding performs its own Binding, giving its Chord time to complete.
+
 **Action**:
 What a Binding produces: a mouse button, a Key Combination, a Nudge in one direction, a Profile switch ("Next Profile" or "Switch to Profile X"), or nothing. Mouse buttons and Key Combinations are held for as long as the button is held.
 
@@ -65,7 +72,7 @@ _Avoid_: hotkey, shortcut, macro
 A small, precise cursor movement, by default produced by the D-pad, as opposed to the analog movement of the left stick.
 
 **Profile**:
-A named set of Bindings, Right Stick Role, movement tuning and optional Trigger Overrides.
+A named set of Bindings, Chord Bindings, Right Stick Role, movement tuning and optional Trigger Overrides.
 _Avoid_: preset, layout, config
 
 **Active Profile**:
