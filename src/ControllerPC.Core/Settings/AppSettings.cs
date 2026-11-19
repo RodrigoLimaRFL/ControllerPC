@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ControllerPC.Core.Profiles;
 using ControllerPC.Core.Triggers;
 
@@ -22,6 +23,7 @@ public sealed class AppSettings
 
     /// <summary>The Active Profile; falls back to the first Profile if the id is unknown.</summary>
     /// <exception cref="InvalidOperationException">There are no Profiles.</exception>
+    [JsonIgnore]
     public Profile ActiveProfile =>
         FindProfile(ActiveProfileId)
         ?? Profiles.FirstOrDefault()
