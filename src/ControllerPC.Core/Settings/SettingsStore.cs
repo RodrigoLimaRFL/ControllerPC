@@ -1,8 +1,15 @@
+using System.Globalization;
+using System.Text;
+
 namespace ControllerPC.Core.Settings;
 
 /// <summary>Loads and saves <see cref="AppSettings"/> as human-readable JSON.</summary>
 public sealed class SettingsStore(string filePath)
 {
+    private const string BackupExtension = ".bad";
+    private const string TemporaryExtension = ".tmp";
+    private const string BackupTimestampFormat = "yyyyMMdd-HHmmss";
+
     /// <summary>Default location: <c>%AppData%\ControllerPC\settings.json</c>.</summary>
     public static string DefaultFilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ControllerPC", "settings.json");
@@ -15,8 +22,90 @@ public sealed class SettingsStore(string filePath)
     /// defaults are returned, with the backup path reported in the result. A file whose <c>Version</c> is newer than
     /// <see cref="AppSettings.CurrentVersion"/> is treated the same way. Never throws for file content.
     /// </summary>
-    public SettingsLoadResult Load() => throw new NotImplementedException();
+    public SettingsLoadResult Load()
+    {
+        if (!File.Exists(FilePath))
+        {
+            return new SettingsLoadResult(DefaultSettings.Create(), null);
+        }
+
+        var settings = TryParse(File.ReadAllText(FilePath, Encoding.UTF8));
+        if (settings is not null && IsUsable(settings))
+        {
+            return new SettingsLoadResult(settings, null);
+        }
+
+        return new SettingsLoadResult(DefaultSettings.Create(), MoveToBackup());
+    }
 
     /// <summary>Saves settings atomically (write to a temporary file, then replace), creating the directory if needed.</summary>
-    public void Save(AppSettings settings) => throw new NotImplementedException();
+    public void Save(AppSettings settings)
+    {
+        var fullPath = Path.GetFullPath(FilePath);
+        var directory = Path.GetDirectoryName(fullPath)
+            ?? throw new InvalidOperationException($"\"{fullPath}\" is not a file path.");
+        Directory.CreateDirectory(directory);
+
+        var temporaryPath = fullPath + TemporaryExtension;
+        try
+        {
+            WriteDurably(temporaryPath, SettingsSerializer.Serialize(settings));
+            File.Move(temporaryPath, fullPath, overwrite: true);
+        }
+        catch
+        {
+            File.Delete(temporaryPath);
+            throw;
+        }
+    }
+
+    private static AppSettings? TryParse(string json)
+    {
+        try
+        {
+            return SettingsSerializer.Deserialize(json);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
+    private static bool IsUsable(AppSettings settings) =>
+        settings.Version <= AppSettings.CurrentVersion
+        && SettingsValidator.Validate(settings).All(issue => issue.Severity != IssueSeverity.Error);
+
+    // Flushed to disk before the rename, so a crash cannot leave the replaced file empty.
+    private static void WriteDurably(string path, string contents)
+    {
+        using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), leaveOpen: true))
+        {
+            writer.Write(contents);
+        }
+
+        stream.Flush(flushToDisk: true);
+    }
+
+    private string MoveToBackup()
+    {
+        var backupPath = AvailableBackupPath();
+        File.Move(FilePath, backupPath);
+        return backupPath;
+    }
+
+    private string AvailableBackupPath()
+    {
+        var timestamp = DateTime.Now.ToString(BackupTimestampFormat, CultureInfo.InvariantCulture);
+        var basePath = $"{FilePath}.{timestamp}";
+        var candidate = basePath + BackupExtension;
+
+        // Two bad loads within the same second must not overwrite the first backup.
+        for (var attempt = 2; File.Exists(candidate); attempt++)
+        {
+            candidate = $"{basePath}-{attempt}{BackupExtension}";
+        }
+
+        return candidate;
+    }
 }

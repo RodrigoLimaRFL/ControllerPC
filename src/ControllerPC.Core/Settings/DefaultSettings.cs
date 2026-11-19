@@ -1,3 +1,8 @@
+using ControllerPC.Core.Controller;
+using ControllerPC.Core.Output;
+using ControllerPC.Core.Profiles;
+using ControllerPC.Core.Triggers;
+
 namespace ControllerPC.Core.Settings;
 
 /// <summary>
@@ -12,5 +17,54 @@ namespace ControllerPC.Core.Settings;
 /// </summary>
 public static class DefaultSettings
 {
-    public static AppSettings Create() => throw new NotImplementedException();
+    private const string DefaultProfileName = "Default";
+
+    private const ushort VirtualKeyEnter = 0x0D;
+    private const ushort VirtualKeyEscape = 0x1B;
+    private const ushort VirtualKeyControl = 0x11;
+    private const ushort VirtualKeyLeftWindows = 0x5B;
+    private const ushort VirtualKeyO = 0x4F;
+
+    private const ControllerButton ModeTriggerChord =
+        ControllerButton.LeftShoulder | ControllerButton.RightShoulder | ControllerButton.Start;
+
+    public static AppSettings Create()
+    {
+        var profile = CreateDefaultProfile();
+        return new AppSettings
+        {
+            BaseEntryTrigger = CreateBaseTrigger(),
+            BaseExitTrigger = CreateBaseTrigger(),
+            Profiles = [profile],
+            ActiveProfileId = profile.Id,
+        };
+    }
+
+    private static ModeTrigger CreateBaseTrigger() => new()
+    {
+        Steps = [new Chord(ModeTriggerChord)],
+        FinalHoldEnabled = true,
+    };
+
+    private static Profile CreateDefaultProfile() => new()
+    {
+        Name = DefaultProfileName,
+        RightStickRole = RightStickRole.Scroll,
+        Tuning = new MovementTuning(),
+        Bindings = new Dictionary<ControllerButton, ButtonAction>
+        {
+            [ControllerButton.LeftShoulder] = new MouseButtonAction(MouseButton.Left),
+            [ControllerButton.RightShoulder] = new MouseButtonAction(MouseButton.Right),
+            [ControllerButton.DPadUp] = new NudgeAction(NudgeDirection.Up),
+            [ControllerButton.DPadDown] = new NudgeAction(NudgeDirection.Down),
+            [ControllerButton.DPadLeft] = new NudgeAction(NudgeDirection.Left),
+            [ControllerButton.DPadRight] = new NudgeAction(NudgeDirection.Right),
+            [ControllerButton.A] = Keys(VirtualKeyEnter),
+            [ControllerButton.B] = Keys(VirtualKeyEscape),
+            [ControllerButton.Y] = Keys(VirtualKeyLeftWindows, VirtualKeyControl, VirtualKeyO),
+        },
+    };
+
+    private static KeyCombinationAction Keys(params ushort[] virtualKeys) =>
+        new(new KeyCombination(virtualKeys));
 }
