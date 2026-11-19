@@ -179,6 +179,67 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_SettingsWithValidationErrors_ThrowsAndWritesNothing()
+    {
+        var invalid = DefaultSettings.Create();
+        invalid.Profiles.Clear();
+
+        Assert.Throws<InvalidOperationException>(() => new SettingsStore(FilePath).Save(invalid));
+        Assert.False(Directory.Exists(_directory));
+    }
+
+    [Fact]
+    public void Save_SettingsWithValidationErrors_LeavesExistingFileUntouched()
+    {
+        var store = new SettingsStore(FilePath);
+        store.Save(DefaultSettings.Create());
+        var original = File.ReadAllText(FilePath);
+        var invalid = DefaultSettings.Create();
+        invalid.BaseExitTrigger.Steps.Clear();
+
+        Assert.Throws<InvalidOperationException>(() => store.Save(invalid));
+        Assert.Equal(original, File.ReadAllText(FilePath));
+    }
+
+    [Fact]
+    public void Save_SettingsWithOnlyWarnings_Succeeds()
+    {
+        var settings = DefaultSettings.Create();
+        settings.ActiveProfile.Bindings[ControllerButton.X] = new SwitchToProfileAction(Guid.NewGuid());
+
+        new SettingsStore(FilePath).Save(settings);
+
+        Assert.True(File.Exists(FilePath));
+    }
+
+    [Fact]
+    public void Save_TemporaryFileCannotBeWritten_ThrowsAndLeavesOriginalUntouched()
+    {
+        var store = new SettingsStore(FilePath);
+        store.Save(DefaultSettings.Create());
+        var original = File.ReadAllText(FilePath);
+        // A directory in the temporary file's place makes both the write and the cleanup fail.
+        Directory.CreateDirectory(FilePath + ".tmp");
+
+        Assert.Throws<UnauthorizedAccessException>(() => store.Save(DefaultSettings.Create()));
+        Assert.Equal(original, File.ReadAllText(FilePath));
+    }
+
+    [Fact]
+    public void Save_SettingsFileLocked_ThrowsAndRemovesTemporaryFile()
+    {
+        var store = new SettingsStore(FilePath);
+        store.Save(DefaultSettings.Create());
+
+        using (new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.ThrowsAny<Exception>(() => store.Save(DefaultSettings.Create()));
+        }
+
+        Assert.Equal([FilePath], Directory.GetFiles(_directory));
+    }
+
+    [Fact]
     public void FilePath_IsTheConstructorArgument()
     {
         Assert.Equal(FilePath, new SettingsStore(FilePath).FilePath);

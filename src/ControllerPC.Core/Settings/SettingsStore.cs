@@ -39,8 +39,13 @@ public sealed class SettingsStore(string filePath)
     }
 
     /// <summary>Saves settings atomically (write to a temporary file, then replace), creating the directory if needed.</summary>
+    /// <exception cref="InvalidOperationException">
+    /// <see cref="SettingsValidator"/> reports Errors for <paramref name="settings"/>; nothing is written.
+    /// </exception>
     public void Save(AppSettings settings)
     {
+        RequireNoValidationErrors(settings);
+
         var fullPath = Path.GetFullPath(FilePath);
         var directory = Path.GetDirectoryName(fullPath)
             ?? throw new InvalidOperationException($"\"{fullPath}\" is not a file path.");
@@ -54,8 +59,31 @@ public sealed class SettingsStore(string filePath)
         }
         catch
         {
-            File.Delete(temporaryPath);
+            DeleteIfPossible(temporaryPath);
             throw;
+        }
+    }
+
+    private static void RequireNoValidationErrors(AppSettings settings)
+    {
+        var errors = ValidationErrors(settings);
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Settings with errors cannot be saved: {string.Join(" ", errors)}");
+        }
+    }
+
+    // Cleanup after a failed save must never hide the exception that made it fail.
+    private static void DeleteIfPossible(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The original failure is what the caller needs to see; a leftover temporary file is harmless.
         }
     }
 
@@ -73,7 +101,13 @@ public sealed class SettingsStore(string filePath)
 
     private static bool IsUsable(AppSettings settings) =>
         settings.Version <= AppSettings.CurrentVersion
-        && SettingsValidator.Validate(settings).All(issue => issue.Severity != IssueSeverity.Error);
+        && ValidationErrors(settings).Count == 0;
+
+    private static List<string> ValidationErrors(AppSettings settings) =>
+        SettingsValidator.Validate(settings)
+            .Where(issue => issue.Severity == IssueSeverity.Error)
+            .Select(issue => issue.Message)
+            .ToList();
 
     // Flushed to disk before the rename, so a crash cannot leave the replaced file empty.
     private static void WriteDurably(string path, string contents)

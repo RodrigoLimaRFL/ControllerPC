@@ -156,7 +156,7 @@ public class SettingsValidatorTests
     public void Validate_EntryTriggerOverrideEqualToBaseEntryTrigger_IsError()
     {
         var other = TestSettings.AddProfile(_settings, "Other");
-        other.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultTriggerChord);
+        other.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultEntryChord);
 
         AssertSingleIssue(IssueSeverity.Error, other.Id);
     }
@@ -164,7 +164,7 @@ public class SettingsValidatorTests
     [Fact]
     public void Validate_EntryTriggerOverrideEqualToBaseOnActiveProfile_IsStillError()
     {
-        DefaultProfile.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultTriggerChord);
+        DefaultProfile.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultEntryChord);
 
         AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
     }
@@ -173,7 +173,7 @@ public class SettingsValidatorTests
     public void Validate_EntryTriggerOverrideWithSameStepsButDifferentTiming_IsError()
     {
         var other = TestSettings.AddProfile(_settings, "Other");
-        other.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultTriggerChord);
+        other.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultEntryChord);
         other.EntryTriggerOverride.FinalHoldEnabled = false;
         other.EntryTriggerOverride.StepGap = TimeSpan.FromSeconds(3);
 
@@ -235,7 +235,7 @@ public class SettingsValidatorTests
     {
         foreach (var button in ControllerButtons.All)
         {
-            DefaultProfile.Bindings[button] = new MouseButtonAction(MouseButton.Middle);
+            DefaultProfile.Bindings[button] = new NudgeAction(NudgeDirection.Up);
         }
 
         Assert.Empty(SettingsValidator.Validate(_settings));
@@ -320,7 +320,7 @@ public class SettingsValidatorTests
     public void Validate_EntryTriggerOverrideStartingWithBaseEntryTrigger_WarnsOnOverride()
     {
         var other = TestSettings.AddProfile(_settings, "Other");
-        other.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultTriggerChord, ControllerButton.A);
+        other.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultEntryChord, ControllerButton.A);
 
         AssertSingleIssue(IssueSeverity.Warning, other.Id);
     }
@@ -374,11 +374,45 @@ public class SettingsValidatorTests
     }
 
     [Fact]
-    public void Validate_ExitTriggerButtonsBoundToMouseButtons_HasNoIssues()
+    public void Validate_ExitTriggerButtonBoundToMouseButton_Warns()
     {
-        Assert.IsType<MouseButtonAction>(DefaultProfile.Bindings[ControllerButton.LeftShoulder]);
+        DefaultProfile.Bindings[ControllerButton.Back] = new MouseButtonAction(MouseButton.Middle);
+
+        AssertSingleIssue(IssueSeverity.Warning, DefaultProfile.Id);
+    }
+
+    [Fact]
+    public void Validate_ExitTriggerButtonBoundToNudge_HasNoIssues()
+    {
+        DefaultProfile.Bindings[ControllerButton.Back] = new NudgeAction(NudgeDirection.Up);
 
         Assert.Empty(SettingsValidator.Validate(_settings));
+    }
+
+    [Fact]
+    public void Validate_ExitTriggerHeldInputWarning_NamesOverlappingButtons()
+    {
+        DefaultProfile.Bindings[ControllerButton.Back] = new MouseButtonAction(MouseButton.Middle);
+        DefaultProfile.Bindings[ControllerButton.Start] = new KeyCombinationAction(new KeyCombination([0x0D]));
+
+        var issue = Assert.Single(SettingsValidator.Validate(_settings));
+
+        Assert.Contains("uses Start, Back,", issue.Message);
+    }
+
+    [Fact]
+    public void Validate_EntryTriggerPrefixWarning_SaysShorterMayFireFirst()
+    {
+        var other = TestSettings.AddProfile(_settings, "Racing");
+        other.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultEntryChord, ControllerButton.A);
+
+        var issue = Assert.Single(SettingsValidator.Validate(_settings));
+
+        Assert.Equal(
+            "The Entry Trigger Override of Profile \"Racing\" starts with all the Steps of the Base Entry Trigger, " +
+            "so the Base Entry Trigger may fire first and prevent the Entry Trigger Override of Profile \"Racing\" " +
+            "from firing.",
+            issue.Message);
     }
 
     [Fact]
@@ -415,7 +449,7 @@ public class SettingsValidatorTests
     public void Validate_EntryTriggerConflict_NamesBothTriggersInMessage()
     {
         var other = TestSettings.AddProfile(_settings, "Racing");
-        other.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultTriggerChord);
+        other.EntryTriggerOverride = TestSettings.Trigger(TestSettings.DefaultEntryChord);
 
         var issue = Assert.Single(SettingsValidator.Validate(_settings));
 

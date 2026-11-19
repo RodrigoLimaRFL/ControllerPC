@@ -82,7 +82,7 @@ public class SettingsSerializerTests
     {
         var settings = RoundTrip(DefaultSettings.Create());
 
-        Assert.Equal(new Chord(TestSettings.DefaultTriggerChord), Assert.Single(settings.BaseEntryTrigger.Steps));
+        Assert.Equal(new Chord(TestSettings.DefaultEntryChord), Assert.Single(settings.BaseEntryTrigger.Steps));
     }
 
     [Fact]
@@ -224,6 +224,72 @@ public class SettingsSerializerTests
     public void Deserialize_MissingRequiredValue_ThrowsFormatException(string json)
     {
         Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
+    }
+
+    [Theory]
+    [InlineData("99")]
+    [InlineData("\"99\"")]
+    public void Deserialize_UndefinedRightStickRole_ThrowsFormatException(string value)
+    {
+        var json = DefaultJson().Replace("\"rightStickRole\": \"Scroll\"", $"\"rightStickRole\": {value}");
+
+        Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
+    }
+
+    [Theory]
+    [InlineData("42")]
+    [InlineData("\"42\"")]
+    public void Deserialize_UndefinedMouseButton_ThrowsFormatException(string value)
+    {
+        var json = DefaultJson().Replace("\"button\": \"Left\"", $"\"button\": {value}");
+
+        Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
+    }
+
+    [Theory]
+    [InlineData("7")]
+    [InlineData("\"7\"")]
+    public void Deserialize_UndefinedNudgeDirection_ThrowsFormatException(string value)
+    {
+        var json = DefaultJson().Replace("\"direction\": \"Up\"", $"\"direction\": {value}");
+
+        Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
+    }
+
+    [Theory]
+    [InlineData("262144")]
+    [InlineData("\"262144\"")]
+    [InlineData("\"1024\"")]
+    public void Deserialize_ChordWithUnknownButton_ThrowsFormatException(string value)
+    {
+        var json = DefaultJson().Replace("\"buttons\": \"Start, LeftShoulder, RightShoulder\"", $"\"buttons\": {value}");
+
+        Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
+    }
+
+    [Theory]
+    [InlineData("262144")]
+    [InlineData("1024")]
+    public void Deserialize_BindingKeyWithUnknownButton_ThrowsFormatException(string value)
+    {
+        var json = DefaultJson().Replace("\"DPadUp\": {", $"\"{value}\": {{");
+
+        Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Deserialize_NumericValuesOfDefinedMembers_AreAccepted()
+    {
+        var json = DefaultJson()
+            .Replace("\"rightStickRole\": \"Scroll\"", "\"rightStickRole\": 1")
+            .Replace("\"buttons\": \"Start, LeftShoulder, RightShoulder\"", "\"buttons\": 768");
+
+        var settings = SettingsSerializer.Deserialize(json);
+
+        Assert.Equal(RightStickRole.Cursor, settings.ActiveProfile.RightStickRole);
+        Assert.Equal(
+            new Chord(ControllerButton.LeftShoulder | ControllerButton.RightShoulder),
+            settings.BaseEntryTrigger.Steps.Single());
     }
 
     [Fact]

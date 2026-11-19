@@ -8,7 +8,9 @@ namespace ControllerPC.Core.Settings;
 /// <summary>
 /// Builds the settings of a fresh install:
 /// <list type="bullet">
-/// <item>Base Entry Trigger and Base Exit Trigger: one Step <c>[LB+RB+Start]</c> with Final Hold enabled (default duration).</item>
+/// <item>Base Entry Trigger: one Step <c>[LB+RB+Start]</c> with Final Hold enabled (default duration).</item>
+/// <item>Base Exit Trigger: one Step <c>[Back+Start]</c> with Final Hold enabled (default duration). It avoids LB and
+/// RB because in Desktop Mode they hold the mouse buttons, so exiting would also click.</item>
 /// <item>One "Default" Profile (the Active Profile), right stick scrolls, default tuning, Bindings:
 /// LB left click, RB right click, D-pad Nudges, A Enter, B Esc, Y on-screen keyboard (<c>Win+Ctrl+O</c>);
 /// all other buttons unbound.</item>
@@ -25,24 +27,26 @@ public static class DefaultSettings
     private const ushort VirtualKeyLeftWindows = 0x5B;
     private const ushort VirtualKeyO = 0x4F;
 
-    private const ControllerButton ModeTriggerChord =
+    private const ControllerButton EntryTriggerChord =
         ControllerButton.LeftShoulder | ControllerButton.RightShoulder | ControllerButton.Start;
+
+    private const ControllerButton ExitTriggerChord = ControllerButton.Back | ControllerButton.Start;
 
     public static AppSettings Create()
     {
         var profile = CreateDefaultProfile();
         return new AppSettings
         {
-            BaseEntryTrigger = CreateBaseTrigger(),
-            BaseExitTrigger = CreateBaseTrigger(),
+            BaseEntryTrigger = CreateBaseTrigger(EntryTriggerChord),
+            BaseExitTrigger = CreateBaseTrigger(ExitTriggerChord),
             Profiles = [profile],
             ActiveProfileId = profile.Id,
         };
     }
 
-    private static ModeTrigger CreateBaseTrigger() => new()
+    private static ModeTrigger CreateBaseTrigger(ControllerButton chord) => new()
     {
-        Steps = [new Chord(ModeTriggerChord)],
+        Steps = [new Chord(chord)],
         FinalHoldEnabled = true,
     };
 

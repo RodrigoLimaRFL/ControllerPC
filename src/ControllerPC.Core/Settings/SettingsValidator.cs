@@ -17,16 +17,20 @@ namespace ControllerPC.Core.Settings;
 /// </list>
 /// <para>Warnings (saving allowed):</para>
 /// <list type="bullet">
-/// <item>One Entry Trigger's Steps are a strict prefix of another's (the longer one can never fire).</item>
-/// <item>A Profile's Effective Exit Trigger uses buttons that the same Profile binds to Key Combinations.</item>
+/// <item>One Entry Trigger's Steps are a strict prefix of another's (the shorter one may fire first and prevent the
+/// longer one).</item>
+/// <item>A Profile's Effective Exit Trigger uses buttons that the same Profile binds to Key Combinations or mouse
+/// buttons.</item>
 /// <item>A "Switch to Profile" Action pointing at a Profile that no longer exists.</item>
 /// </list>
 /// Identical Entry and Exit Triggers are allowed. Two Mode Triggers are identical when their Steps are equal;
 /// timing settings are not compared.
 /// </summary>
 /// <remarks>
-/// Entry Trigger conflicts compare every Entry Trigger Override with the Base Entry Trigger and with every other
-/// override, whichever Profile is active, because the Active Profile changes at run time.
+/// <para>Entry Trigger conflicts compare every Entry Trigger Override with the Base Entry Trigger and with every other
+/// override, whichever Profile is active, because the Active Profile changes at run time.</para>
+/// <para>The prefix Warning is given even when the shorter trigger has Final Hold: tapping its last Chord lets the
+/// longer one continue, but holding it fires the shorter one, so the user should still know.</para>
 /// </remarks>
 public static class SettingsValidator
 {
@@ -38,7 +42,7 @@ public static class SettingsValidator
         .. settings.Profiles.SelectMany(BindingIssues),
         .. settings.Profiles.SelectMany(TuningIssues),
         .. EntryTriggerPrefixWarnings(settings),
-        .. settings.Profiles.SelectMany(profile => ExitTriggerKeyCombinationWarnings(settings, profile)),
+        .. settings.Profiles.SelectMany(profile => ExitTriggerHeldInputWarnings(settings, profile)),
         .. settings.Profiles.SelectMany(profile => MissingSwitchTargetWarnings(settings, profile)),
     ];
 
@@ -181,26 +185,26 @@ public static class SettingsValidator
             foreach (var longer in entryTriggers.Where(shorter.IsStrictPrefixOf))
             {
                 yield return Warning(
-                    $"The {longer.Description} can never fire, because it starts with all the Steps of the " +
-                    $"{shorter.Description}.",
+                    $"The {longer.Description} starts with all the Steps of the {shorter.Description}, so the " +
+                    $"{shorter.Description} may fire first and prevent the {longer.Description} from firing.",
                     longer.ProfileId);
             }
         }
     }
 
-    private static IEnumerable<ValidationIssue> ExitTriggerKeyCombinationWarnings(AppSettings settings, Profile profile)
+    private static IEnumerable<ValidationIssue> ExitTriggerHeldInputWarnings(AppSettings settings, Profile profile)
     {
         var exitButtons = settings.EffectiveExitTrigger(profile).Steps
             .Aggregate(ControllerButton.None, (buttons, chord) => buttons | chord.Buttons);
         var overlapping = ControllerButtons.Split(exitButtons)
-            .Where(button => profile.GetAction(button) is KeyCombinationAction)
+            .Where(button => profile.GetAction(button) is KeyCombinationAction or MouseButtonAction)
             .ToList();
 
         if (overlapping.Count > 0)
         {
             yield return Warning(
                 $"The Effective Exit Trigger of Profile \"{profile.Name}\" uses {string.Join(", ", overlapping)}, which this " +
-                "Profile binds to Key Combinations. Performing the Exit Trigger will also press those keys.",
+                "Profile binds to Key Combinations or mouse buttons. Performing the Exit Trigger will also press them.",
                 profile.Id);
         }
     }

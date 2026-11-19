@@ -33,13 +33,24 @@ public class DefaultSettingsTests
     [Fact]
     public void Create_BaseEntryTriggerIsShouldersPlusStartWithFinalHold()
     {
-        AssertShouldersPlusStartWithFinalHold(DefaultSettings.Create().BaseEntryTrigger);
+        AssertSingleStepWithFinalHold(TestSettings.DefaultEntryChord, DefaultSettings.Create().BaseEntryTrigger);
     }
 
     [Fact]
-    public void Create_BaseExitTriggerIsShouldersPlusStartWithFinalHold()
+    public void Create_BaseExitTriggerIsBackPlusStartWithFinalHold()
     {
-        AssertShouldersPlusStartWithFinalHold(DefaultSettings.Create().BaseExitTrigger);
+        AssertSingleStepWithFinalHold(TestSettings.DefaultExitChord, DefaultSettings.Create().BaseExitTrigger);
+    }
+
+    [Fact]
+    public void Create_BaseExitTriggerUsesOnlyUnboundButtons()
+    {
+        var settings = DefaultSettings.Create();
+        var exitButtons = settings.BaseExitTrigger.Steps.Single().Buttons;
+
+        Assert.All(
+            ControllerButtons.Split(exitButtons),
+            button => Assert.IsType<NoAction>(settings.ActiveProfile.GetAction(button)));
     }
 
     [Fact]
@@ -95,9 +106,9 @@ public class DefaultSettingsTests
         Assert.NotEmpty(second.BaseEntryTrigger.Steps);
     }
 
-    private static void AssertShouldersPlusStartWithFinalHold(ModeTrigger trigger)
+    private static void AssertSingleStepWithFinalHold(ControllerButton chord, ModeTrigger trigger)
     {
-        Assert.Equal([new Chord(TestSettings.DefaultTriggerChord)], trigger.Steps);
+        Assert.Equal([new Chord(chord)], trigger.Steps);
         Assert.True(trigger.FinalHoldEnabled);
         Assert.Equal(ModeTrigger.DefaultFinalHoldDuration, trigger.FinalHoldDuration);
         Assert.Equal(ModeTrigger.DefaultStepGap, trigger.StepGap);

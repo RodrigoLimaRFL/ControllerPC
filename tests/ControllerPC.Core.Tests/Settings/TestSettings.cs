@@ -8,8 +8,10 @@ namespace ControllerPC.Core.Tests.Settings;
 /// <summary>Builders for the settings used across the Settings tests.</summary>
 internal static class TestSettings
 {
-    public const ControllerButton DefaultTriggerChord =
+    public const ControllerButton DefaultEntryChord =
         ControllerButton.LeftShoulder | ControllerButton.RightShoulder | ControllerButton.Start;
+
+    public const ControllerButton DefaultExitChord = ControllerButton.Back | ControllerButton.Start;
 
     /// <summary>A Mode Trigger with one Step per Chord, in order.</summary>
     public static ModeTrigger Trigger(params ControllerButton[] chords) =>
