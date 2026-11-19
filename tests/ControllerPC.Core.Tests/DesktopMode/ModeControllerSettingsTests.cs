@@ -1,4 +1,5 @@
 using ControllerPC.Core.Controller;
+using ControllerPC.Core.DesktopMode;
 using ControllerPC.Core.Output;
 using ControllerPC.Core.Profiles;
 using ControllerPC.Core.Settings;
@@ -150,6 +151,38 @@ public sealed class ModeControllerSettingsTests
         _harness.Hold(0, None);
         _harness.Hold(0, A);
         Assert.Equal([MouseEvent("down", MouseButton.Forward)], _harness.Sink.ButtonEvents);
+    }
+
+    [Fact]
+    public void ApplySettings_NoProfiles_ThrowsArgumentException()
+    {
+        var saved = SavedCopy();
+        saved.Profiles.Clear();
+
+        Assert.Throws<ArgumentException>(() => _harness.Controller.ApplySettings(saved, _harness.Now));
+    }
+
+    [Fact]
+    public void ApplySettings_NoProfiles_KeepsTheCurrentSettingsInEffect()
+    {
+        var saved = SavedCopy();
+        saved.Profiles.Clear();
+
+        Assert.Throws<ArgumentException>(() => _harness.Controller.ApplySettings(saved, _harness.Now));
+        _harness.Hold(0, EntryChord);
+
+        Assert.Same(_harness.Settings, _harness.Controller.Settings);
+        Assert.Same(_harness.Main, _harness.Controller.ActiveProfile);
+        Assert.True(_harness.Controller.IsDesktopModeActive);
+        Assert.Equal(1, _harness.StateChangedCount);
+    }
+
+    [Fact]
+    public void Constructor_NoProfiles_ThrowsArgumentException()
+    {
+        _harness.Settings.Profiles.Clear();
+
+        Assert.Throws<ArgumentException>(() => new ModeController(_harness.Source, _harness.Rumble, _harness.Sink, _harness.Settings));
     }
 
     /// <summary>A copy of the harness settings, as the settings window would save them.</summary>
