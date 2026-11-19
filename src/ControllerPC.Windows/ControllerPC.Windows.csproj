@@ -6,6 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ControllerPC.Windows.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ControllerPC.Core\ControllerPC.Core.csproj" />
   </ItemGroup>
 
