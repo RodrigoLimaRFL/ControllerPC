@@ -9,8 +9,8 @@ namespace ControllerPC.App.UI;
 /// </summary>
 internal sealed class ModeTriggerEditor : UserControl
 {
-    // The Steps list and its buttons span the width of the Chord grid below them.
-    private const int ListWidth = (ChordColumns * ChordColumnWidth) + ChordPadding - ClassicControls.ButtonWidth - ButtonGap;
+    // The Steps list and its buttons span the width of the Chord group below them.
+    private const int ListWidth = ChordPicker.GridWidth + ChordPadding - ClassicControls.ButtonWidth - ButtonGap;
     private const int ButtonGap = 10;
     private const int ListTop = 18;
 
@@ -18,10 +18,6 @@ internal sealed class ModeTriggerEditor : UserControl
     private const int ListHeight = (3 * ClassicControls.RowHeight) + ClassicControls.ButtonHeight;
     private const int ButtonX = ListWidth + ButtonGap;
     private const int ChordTop = ListTop + ListHeight + 8;
-    private const int ChordColumns = 4;
-    private const int ChordColumnWidth = 102;
-    private const int ChordRowHeight = 23;
-    private const int ChordCellGap = 2;
     private const int ChordPadding = 10;
     private const int ChordBoxTop = 20;
     private const int TimingFieldX = 100;
@@ -43,7 +39,7 @@ internal sealed class ModeTriggerEditor : UserControl
     private readonly Button _removeButton;
     private readonly Button _clearButton;
     private readonly GroupBox _chordGroup;
-    private readonly Dictionary<ControllerButton, CheckBox> _chordBoxes = [];
+    private readonly ChordPicker _chordPicker = new() { Location = new Point(ChordPadding, ChordBoxTop) };
     private readonly NumericUpDown _stepGapBox;
     private readonly CheckBox _finalHoldBox;
     private readonly NumericUpDown _finalHoldDurationBox;
@@ -108,30 +104,14 @@ internal sealed class ModeTriggerEditor : UserControl
 
     private GroupBox CreateChordGroup()
     {
-        var rows = (ControllerButtons.All.Count + ChordColumns - 1) / ChordColumns;
         var group = ClassicControls.Group(
             "Chord of the selected Step",
             0,
             ChordTop,
-            (ChordColumns * ChordColumnWidth) + ChordPadding,
-            ChordBoxTop + (rows * ChordRowHeight) + (ChordPadding / 2));
-
-        for (var i = 0; i < ControllerButtons.All.Count; i++)
-        {
-            var button = ControllerButtons.All[i];
-            var box = ClassicControls.CheckBox(
-                DisplayNames.ForButton(button),
-                ChordPadding + ((i % ChordColumns) * ChordColumnWidth),
-                ChordBoxTop + ((i / ChordColumns) * ChordRowHeight));
-
-            // A fixed size keeps the grid regular when it is scaled; auto-sized boxes overlapped their neighbors.
-            box.AutoSize = false;
-            box.Size = new Size(ChordColumnWidth - ChordCellGap, ChordRowHeight - ChordCellGap);
-            box.CheckedChanged += (_, _) => StoreSelectedChord();
-            _chordBoxes[button] = box;
-            group.Controls.Add(box);
-        }
-
+            _chordPicker.Width + ChordPadding,
+            ChordBoxTop + _chordPicker.Height + (ChordPadding / 2));
+        group.Controls.Add(_chordPicker);
+        _chordPicker.ChordChanged += (_, _) => StoreSelectedChord();
         return group;
     }
 
@@ -156,13 +136,7 @@ internal sealed class ModeTriggerEditor : UserControl
         var index = _stepsList.SelectedIndex;
         var chord = editable && index >= 0 ? _trigger!.Steps[index] : default;
 
-        _loading = true;
-        foreach (var (button, box) in _chordBoxes)
-        {
-            box.Checked = chord.Buttons.HasFlag(button);
-        }
-
-        _loading = false;
+        _chordPicker.SetChord(chord);
 
         _stepsList.Enabled = _recordButton.Enabled = _addButton.Enabled = editable;
         _stepGapBox.Enabled = _finalHoldBox.Enabled = editable;
@@ -180,8 +154,7 @@ internal sealed class ModeTriggerEditor : UserControl
             return;
         }
 
-        var buttons = _chordBoxes.Where(pair => pair.Value.Checked).Aggregate(ControllerButton.None, (all, pair) => all | pair.Key);
-        _trigger.Steps[index] = new Chord(buttons);
+        _trigger.Steps[index] = _chordPicker.Chord;
         _loading = true;
         _stepsList.Items[index] = DisplayNames.ForStep(index, _trigger.Steps[index]);
         _stepsList.SelectedIndex = index;
@@ -210,23 +183,14 @@ internal sealed class ModeTriggerEditor : UserControl
             return;
         }
 
-        using var dialog = new RecordTriggerDialog(_controllerSource);
-        DialogResult result;
-
-        // Inside the try: even if a RecordingStarted handler throws, RecordingFinished still follows it.
-        try
+        using var dialog = RecordChordsDialog.ForModeTrigger(_controllerSource);
+        var steps = dialog.Record(
+            FindForm(),
+            () => RecordingStarted?.Invoke(this, EventArgs.Empty),
+            () => RecordingFinished?.Invoke(this, EventArgs.Empty));
+        if (steps.Count > 0)
         {
-            RecordingStarted?.Invoke(this, EventArgs.Empty);
-            result = dialog.ShowDialog(FindForm());
-        }
-        finally
-        {
-            RecordingFinished?.Invoke(this, EventArgs.Empty);
-        }
-
-        if (result == DialogResult.OK && dialog.RecordedSteps.Count > 0)
-        {
-            _trigger.Steps = dialog.RecordedSteps;
+            _trigger.Steps = steps;
             ShowSteps(selectedIndex: 0);
         }
     }

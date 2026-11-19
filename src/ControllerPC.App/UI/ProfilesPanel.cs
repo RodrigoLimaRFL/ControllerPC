@@ -46,7 +46,7 @@ internal sealed class ProfilesPanel : UserControl
         ShowProfiles(settings.ActiveProfile);
     }
 
-    /// <summary>Raised just before a Trigger Override of the selected Profile starts recording from the controller.</summary>
+    /// <summary>Raised just before a Trigger Override or Chord of the selected Profile starts recording from the controller.</summary>
     public event EventHandler? RecordingStarted
     {
         add => _profileEditor.RecordingStarted += value;
