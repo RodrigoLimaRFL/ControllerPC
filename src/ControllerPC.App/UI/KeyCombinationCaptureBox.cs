@@ -6,11 +6,16 @@ namespace ControllerPC.App.UI;
 /// A text box that captures a Key Combination from the physical keyboard instead of accepting text.
 /// Pressing a key captures it together with the modifiers held; pressing and releasing modifiers alone captures
 /// just those modifiers. Keys are taken in <see cref="ProcessCmdKey"/>, before the form or a tab control can use
-/// Tab, Enter, Esc or Ctrl+Tab.
+/// Enter, Esc or Ctrl+Tab.
 /// </summary>
 /// <remarks>
-/// Windows keeps many Win+key combinations for itself, so the Win key is often missing from what reaches the box;
-/// <see cref="SetWin"/> lets an accompanying "Win" check box add it.
+/// <list type="bullet">
+/// <item>Plain Tab (no modifier held) is not captured: it moves the focus as usual, so the box can be left with
+/// the keyboard. Tab with a modifier (e.g. Alt+Tab) is captured.</item>
+/// <item>Windows keeps many Win+key combinations for itself, so the Win key is often missing from what reaches the
+/// box; <see cref="SetWin"/> lets an accompanying "Win" check box add it.</item>
+/// <item>Print Screen cannot be captured: Windows sends no key-down message for it to applications.</item>
+/// </list>
 /// </remarks>
 internal sealed class KeyCombinationCaptureBox : TextBox
 {
@@ -54,6 +59,11 @@ internal sealed class KeyCombinationCaptureBox : TextBox
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
         var key = keyData & Keys.KeyCode;
+        if (keyData == Keys.Tab && _heldModifiers.Count == 0)
+        {
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
         if (KeyCombinationComposer.ToModifier(key) is { } modifier)
         {
             if (_heldModifiers.Count == 0)

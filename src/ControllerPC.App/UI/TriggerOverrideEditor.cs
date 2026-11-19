@@ -42,6 +42,20 @@ internal sealed class TriggerOverrideEditor : UserControl
     /// <summary>Raised when the user turns the Trigger Override on or off; read <see cref="Override"/>.</summary>
     public event EventHandler? OverrideChanged;
 
+    /// <summary>Raised just before the Trigger Override starts recording from the controller.</summary>
+    public event EventHandler? RecordingStarted
+    {
+        add => _triggerEditor.RecordingStarted += value;
+        remove => _triggerEditor.RecordingStarted -= value;
+    }
+
+    /// <summary>Raised when a recording started from this editor ends.</summary>
+    public event EventHandler? RecordingFinished
+    {
+        add => _triggerEditor.RecordingFinished += value;
+        remove => _triggerEditor.RecordingFinished -= value;
+    }
+
     /// <summary>The Trigger Override being edited, or <c>null</c> when the Base Trigger applies.</summary>
     public ModeTrigger? Override => _override;
 

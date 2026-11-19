@@ -46,17 +46,35 @@ internal sealed class ProfilesPanel : UserControl
         ShowProfiles(settings.ActiveProfile);
     }
 
+    /// <summary>Raised just before a Trigger Override of the selected Profile starts recording from the controller.</summary>
+    public event EventHandler? RecordingStarted
+    {
+        add => _profileEditor.RecordingStarted += value;
+        remove => _profileEditor.RecordingStarted -= value;
+    }
+
+    /// <summary>Raised when a recording started from this panel ends.</summary>
+    public event EventHandler? RecordingFinished
+    {
+        add => _profileEditor.RecordingFinished += value;
+        remove => _profileEditor.RecordingFinished -= value;
+    }
+
     /// <summary>Shows the selected Profile again, e.g. after the Base Triggers changed on another page.</summary>
     public void RefreshSelected() => EditSelected();
 
     private Profile? SelectedProfile => (_profileList.SelectedItem as ListItem<Profile>)?.Value;
 
-    /// <summary>A deep copy of <paramref name="profile"/> with a fresh id.</summary>
+    /// <summary>
+    /// A deep copy of <paramref name="profile"/> with a fresh id. The Entry Trigger Override is not copied: two
+    /// identical Entry Triggers could never be told apart, so the copy uses the Base Entry Trigger instead.
+    /// </summary>
     private static Profile Copy(Profile profile)
     {
         var holder = new AppSettings { Profiles = [profile], ActiveProfileId = profile.Id };
         var copy = SettingsSerializer.Clone(holder).Profiles[0];
         copy.Id = Guid.NewGuid();
+        copy.EntryTriggerOverride = null;
         return copy;
     }
 
