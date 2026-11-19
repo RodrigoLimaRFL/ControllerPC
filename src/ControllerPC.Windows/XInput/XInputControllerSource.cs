@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using ControllerPC.Core.Controller;
+using ControllerPC.Windows.Diagnostics;
 
 namespace ControllerPC.Windows.XInput;
 
@@ -21,6 +22,9 @@ public sealed class XInputControllerSource : IControllerSource
         | ControllerButton.LeftShoulder | ControllerButton.RightShoulder
         | ControllerButton.A | ControllerButton.B | ControllerButton.X | ControllerButton.Y;
 
+    // Polled every few milliseconds: a failing slot is logged when its error starts, not on every read.
+    private readonly StatusChangeFilter _readStatus = new(XInputNative.MaxControllerCount, XInputNative.ErrorSuccess);
+
     public int SlotCount => XInputNative.MaxControllerCount;
 
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="slot"/> is not in [0, <see cref="SlotCount"/>).</exception>
@@ -30,6 +34,7 @@ public sealed class XInputControllerSource : IControllerSource
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(slot, SlotCount);
 
         uint result = XInputNative.XInputGetState((uint)slot, out XInputState state);
+        bool resultChanged = _readStatus.Changed(slot, result);
         switch (result)
         {
             case XInputNative.ErrorSuccess:
@@ -37,7 +42,11 @@ public sealed class XInputControllerSource : IControllerSource
             case XInputNative.ErrorDeviceNotConnected:
                 return null;
             default:
-                Trace.TraceWarning($"XInputGetState({slot}) failed with error {result}.");
+                if (resultChanged)
+                {
+                    Trace.TraceWarning($"XInputGetState({slot}) failed with error {result}.");
+                }
+
                 return null;
         }
     }
