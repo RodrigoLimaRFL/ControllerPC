@@ -8,7 +8,7 @@ keyboard. You switch it on and off with button sequences and/or combinations you
 
 ## Build
 
-Requires the .NET SDK (8 or later) on Windows.
+Requires the .NET SDK 9.0.200 or later on Windows (needed for the `.slnx` solution; the app targets .NET 8).
 
 ```bash
 dotnet build

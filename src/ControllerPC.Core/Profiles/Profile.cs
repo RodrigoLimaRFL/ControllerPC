@@ -8,11 +8,15 @@ namespace ControllerPC.Core.Profiles;
 /// </summary>
 public sealed class Profile
 {
+    /// <summary>Stable identity, so Profile switch Actions survive renames. A new Profile gets a fresh id.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
 
     public string Name { get; set; } = "Default";
 
-    /// <summary>The Bindings: one Action per single digital button. Missing buttons act as nothing.</summary>
+    /// <summary>
+    /// The Bindings: one Action per single digital button (each key is exactly one <see cref="ControllerButton"/> flag).
+    /// Missing buttons act as nothing.
+    /// </summary>
     public Dictionary<ControllerButton, ButtonAction> Bindings { get; set; } = [];
 
     public RightStickRole RightStickRole { get; set; } = RightStickRole.Scroll;

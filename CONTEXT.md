@@ -30,13 +30,16 @@ A set of one or more controller buttons held down at the same time.
 _Avoid_: combo, combination
 
 **Base Trigger**:
-The global Entry or Exit Trigger used by every Profile that does not define its own Trigger Override.
+The global Entry or Exit Trigger used by every Profile that does not define its own Trigger Override. The Base Entry Trigger enters Desktop Mode with the Active Profile, and is only watched when the Active Profile has no Entry Trigger Override.
 
 **Trigger Override**:
-A Profile's own Entry or Exit Trigger, replacing the corresponding Base Trigger for that Profile.
+A Profile's own Entry or Exit Trigger, replacing the corresponding Base Trigger for that Profile. An Entry Trigger Override is watched even when its Profile is not active, and firing it makes that Profile the Active Profile.
 
 **Effective Trigger**:
 The Entry or Exit Trigger that actually applies to a Profile: its Trigger Override if defined, otherwise the Base Trigger.
+
+**Step Gap**:
+The maximum time allowed between releasing one Step and completing the next before an in-progress Mode Trigger attempt is abandoned.
 
 **Final Hold**:
 An optional requirement that the last Chord of a Mode Trigger be held for a minimum duration before the trigger fires.
@@ -62,8 +65,11 @@ _Avoid_: hotkey, shortcut, macro
 A small, precise cursor movement, by default produced by the D-pad, as opposed to the analog movement of the left stick.
 
 **Profile**:
-A named set of Bindings, Right Stick Role, movement tuning and optional Trigger Overrides; exactly one Profile is the Active Profile at any time.
+A named set of Bindings, Right Stick Role, movement tuning and optional Trigger Overrides.
 _Avoid_: preset, layout, config
+
+**Active Profile**:
+The one Profile currently in effect: the Profile Desktop Mode uses, and the one restored at the next launch.
 
 **Right Stick Role**:
 The selectable behavior of the right stick in Desktop Mode: scroll, cursor, or none. The left stick always moves the cursor.

@@ -2,7 +2,11 @@ using ControllerPC.Core.Output;
 
 namespace ControllerPC.Windows.Output;
 
-/// <summary>Sends synthetic mouse and keyboard input through the Win32 SendInput API.</summary>
+/// <summary>
+/// Sends synthetic mouse and keyboard input through the Win32 SendInput API. Relative moves are subject to the
+/// user's pointer-speed settings, so pixels are approximate. Extended keys (arrows, navigation keys, right-hand
+/// modifiers, Win) are sent with <c>KEYEVENTF_EXTENDEDKEY</c>.
+/// </summary>
 public sealed class SendInputSink : IInputSink
 {
     public void MoveCursor(int dx, int dy) => throw new NotImplementedException();

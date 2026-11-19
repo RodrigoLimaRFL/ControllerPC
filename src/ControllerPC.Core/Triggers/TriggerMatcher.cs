@@ -6,17 +6,18 @@ namespace ControllerPC.Core.Triggers;
 /// Watches a stream of held-button sets and reports when one <see cref="ModeTrigger"/> is completed.
 /// </summary>
 /// <remarks>
-/// Matching rules (see CONTEXT.md):
+/// Matching rules:
 /// <list type="bullet">
 /// <item>A Step completes the moment exactly its Chord's buttons are held; press order within the Chord does not matter.</item>
 /// <item>Holding any button outside the expected Chord breaks the match and resets the attempt.</item>
 /// <item>The next Step only starts counting after every button of the previous Step is released.</item>
-/// <item>If the next Step is not completed within <see cref="ModeTrigger.StepGap"/> of the previous Step's release, the attempt resets.</item>
+/// <item>If the next Step is not completed within the Step Gap of the previous Step's release, the attempt resets.</item>
 /// <item>With Final Hold enabled, the last Chord must stay held (exactly) for the Final Hold duration.</item>
 /// <item>Buttons already held when the matcher is created or <see cref="Reset"/> must be released before they can contribute.</item>
 /// <item>After firing, the matcher resets itself (the buttons still held must be released before contributing again).</item>
 /// <item>A trigger with no Steps never fires.</item>
 /// </list>
+/// Time is passed in as an absolute, monotonic <c>now</c> because the rules compare moments.
 /// </remarks>
 public sealed class TriggerMatcher
 {
