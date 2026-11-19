@@ -36,10 +36,12 @@ try {
     }
 
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-    Copy-Item -Path (Join-Path $publishDir $exeName) -Destination $InstallDir -Force
+    Copy-Item -LiteralPath (Join-Path $publishDir $exeName) -Destination (Join-Path $InstallDir $exeName) -Force
 }
 finally {
-    Remove-Item -Recurse -Force -Path $publishDir -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $publishDir) {
+        Remove-Item -LiteralPath $publishDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 $exePath = Join-Path $InstallDir $exeName
