@@ -26,10 +26,13 @@ namespace ControllerPC.Core.DesktopMode;
 /// returns is acted on afterwards: Next Profile goes to the next Profile in list order, wrapping; Switch to Profile
 /// goes to that Profile if it still exists. Switching plays <see cref="RumblePattern.ProfileSwitched"/>; switching to the
 /// Active Profile does nothing.</item>
-/// <item>If the Driving Controller disconnects, everything held is released and Desktop Mode is left (no rumble).</item>
+/// <item>If reading the Driving Controller fails, everything held is released and Desktop Mode is left (no rumble).
+/// The source reports a disconnect and any other read error alike, as <c>null</c>, so a single failed read is enough to
+/// leave Desktop Mode: that way no key or mouse button can stay held on a controller that cannot be read.</item>
 /// <item>The first translated Tick after entering or resuming has no elapsed time; after that, elapsed is the time
 /// since the previous Tick.</item>
-/// <item>A slot found disconnected is re-probed at most once per second; connected slots are read every Tick.</item>
+/// <item>A slot found disconnected is re-probed at most once per second (except by <see cref="EnterDesktopMode"/>);
+/// connected slots are read every Tick.</item>
 /// <item>While paused (e.g. while a Mode Trigger is being recorded) everything held is released and no Mode Trigger is
 /// matched and nothing is translated; Desktop Mode stays as it is, and only a Driving Controller disconnect is handled.
 /// </item>
@@ -47,12 +50,13 @@ public sealed class ModeController
     private EntryWatcher _entryWatcher;
     private DrivingControllerSession? _session;
 
+    /// <exception cref="ArgumentException"><paramref name="settings"/> contains no Profiles.</exception>
     public ModeController(IControllerSource source, IRumble rumble, IInputSink sink, AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(rumble);
         ArgumentNullException.ThrowIfNull(sink);
-        ArgumentNullException.ThrowIfNull(settings);
+        ThrowIfNoProfiles(settings);
 
         _rumble = rumble;
         _slots = new SlotProber(source);
@@ -91,7 +95,8 @@ public sealed class ModeController
     }
 
     /// <summary>
-    /// Enters Desktop Mode by hand, with the first connected slot as Driving Controller.
+    /// Enters Desktop Mode by hand, with the first connected slot as Driving Controller. Every slot is read, including
+    /// one found disconnected less than a re-probe interval ago, so a controller plugged in just now is found.
     /// Returns <c>false</c> (and does nothing) when no controller is connected, Desktop Mode is already on, or paused.
     /// </summary>
     public bool EnterDesktopMode(TimeSpan now)
@@ -103,7 +108,8 @@ public sealed class ModeController
 
         for (var slot = 0; slot < _slots.SlotCount; slot++)
         {
-            if (_slots.Read(slot, now) is { } state)
+            // Probed regardless of the re-probe interval: the user may have just plugged the controller in.
+            if (_slots.Probe(slot, now) is { } state)
             {
                 Enter(slot, state.Buttons);
                 return true;
@@ -147,9 +153,12 @@ public sealed class ModeController
     /// Switches to newly saved <paramref name="settings"/>. The live Active Profile stays active if it still exists
     /// in them (its id is written into <paramref name="settings"/>); otherwise their own Active Profile applies.
     /// </summary>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="settings"/> contains no Profiles; nothing is changed, the current settings stay in effect.
+    /// </exception>
     public void ApplySettings(AppSettings settings, TimeSpan now)
     {
-        ArgumentNullException.ThrowIfNull(settings);
+        ThrowIfNoProfiles(settings);
 
         var liveActiveProfileId = ActiveProfile.Id;
         if (settings.FindProfile(liveActiveProfileId) is not null)
@@ -349,4 +358,14 @@ public sealed class ModeController
         new(Settings.EffectiveExitTrigger(ActiveProfile), held);
 
     private void RaiseStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>The Active Profile, and so everything the controller does, needs at least one Profile.</summary>
+    private static void ThrowIfNoProfiles(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        if (settings.Profiles.Count == 0)
+        {
+            throw new ArgumentException("Settings must contain at least one Profile.", nameof(settings));
+        }
+    }
 }

@@ -43,6 +43,18 @@ public sealed class ModeControllerManualTests
     }
 
     [Fact]
+    public void EnterDesktopMode_ControllerPluggedInWithinProbeInterval_IsFound()
+    {
+        _harness.Source.Disconnect(0);
+        _harness.Start();
+        _harness.Source.Connect(1);
+        _harness.Tick();
+
+        Assert.True(_harness.Controller.EnterDesktopMode(_harness.Now));
+        Assert.Equal(1, _harness.Controller.DrivingSlot);
+    }
+
+    [Fact]
     public void EnterDesktopMode_NoControllerConnected_ReturnsFalse()
     {
         _harness.Source.Disconnect(0);
