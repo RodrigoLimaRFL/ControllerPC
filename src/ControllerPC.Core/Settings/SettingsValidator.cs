@@ -12,8 +12,13 @@ namespace ControllerPC.Core.Settings;
 /// <item>A Mode Trigger with Step Gap or Final Hold duration &lt;= 0.</item>
 /// <item>Two watched Entry Trigger sources with identical Steps: a Profile's Entry Trigger Override equal to
 /// the Base Entry Trigger or to another Profile's override.</item>
-/// <item>A Binding whose key is <c>None</c> or more than one button, or a Key Combination with no keys.</item>
-/// <item>Tuning out of range: Deadzone outside [0, 1), CursorSpeed or ScrollSpeed &lt;= 0, NudgeStep &lt; 1.</item>
+/// <item>A Binding whose key is <c>None</c> or more than one button, or a Key Combination with no keys (in a Binding
+/// or a Chord Binding).</item>
+/// <item>A Chord Binding with fewer than two buttons; two Chord Bindings with the same Chord in one Profile.</item>
+/// <item>A Chord Binding whose buttons are all part of one Step's Chord of the Profile's Effective Exit Trigger: it would
+/// be performed on every exit.</item>
+/// <item>Tuning out of range: Deadzone outside [0, 1), CursorSpeed or ScrollSpeed &lt;= 0, NudgeStep &lt; 1,
+/// Chord Wait outside [0, <see cref="Profile.MaxChordWait"/>].</item>
 /// </list>
 /// <para>Warnings (saving allowed):</para>
 /// <list type="bullet">
@@ -21,8 +26,9 @@ namespace ControllerPC.Core.Settings;
 /// longer one).</item>
 /// <item>A Profile's Effective Exit Trigger uses buttons that the same Profile binds to Key Combinations or mouse
 /// buttons.</item>
-/// <item>A "Switch to Profile" Action pointing at a Profile that no longer exists.</item>
+/// <item>A "Switch to Profile" Action (of a Binding or a Chord Binding) pointing at a Profile that no longer exists.</item>
 /// </list>
+/// Chord Bindings are not checked against Entry Triggers, which are only watched outside Desktop Mode.
 /// Identical Entry and Exit Triggers are allowed. Two Mode Triggers are identical when their Steps are equal;
 /// timing settings are not compared.
 /// </summary>
@@ -34,12 +40,15 @@ namespace ControllerPC.Core.Settings;
 /// </remarks>
 public static class SettingsValidator
 {
+    private const int MinimumChordBindingButtons = 2;
+
     public static IReadOnlyList<ValidationIssue> Validate(AppSettings settings) =>
     [
         .. ProfileListIssues(settings.Profiles),
         .. AllModeTriggers(settings).SelectMany(ModeTriggerIssues),
         .. EntryTriggerConflictIssues(settings),
         .. settings.Profiles.SelectMany(BindingIssues),
+        .. settings.Profiles.SelectMany(profile => ChordBindingIssues(settings, profile)),
         .. settings.Profiles.SelectMany(TuningIssues),
         .. EntryTriggerPrefixWarnings(settings),
         .. settings.Profiles.SelectMany(profile => ExitTriggerHeldInputWarnings(settings, profile)),
@@ -147,6 +156,51 @@ public static class SettingsValidator
         }
     }
 
+    private static IEnumerable<ValidationIssue> ChordBindingIssues(AppSettings settings, Profile profile)
+    {
+        var exitChords = settings.EffectiveExitTrigger(profile).Steps.Select(step => step.Buttons).ToList();
+        foreach (var chordBinding in profile.ChordBindings)
+        {
+            var chord = chordBinding.Chord.Buttons;
+            var name = ChordName(chord);
+            if (ControllerButtons.Split(chord).Count() < MinimumChordBindingButtons)
+            {
+                yield return Error(
+                    $"The Chord Binding {name} in Profile \"{profile.Name}\" needs at least two buttons.", profile.Id);
+                continue;
+            }
+
+            if (exitChords.Any(exitChord => (chord & ~exitChord) == ControllerButton.None))
+            {
+                yield return Error(
+                    $"The Chord Binding {name} in Profile \"{profile.Name}\" only uses buttons of a Step of the Profile's " +
+                    "Effective Exit Trigger, so it would be performed every time Desktop Mode is exited.",
+                    profile.Id);
+            }
+
+            if (chordBinding.Action is KeyCombinationAction { Keys.IsEmpty: true })
+            {
+                yield return Error(
+                    $"The Chord Binding {name} in Profile \"{profile.Name}\" has a Key Combination with no keys.",
+                    profile.Id);
+            }
+        }
+
+        var duplicateChords = profile.ChordBindings
+            .GroupBy(chordBinding => chordBinding.Chord)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key.Buttons);
+        foreach (var chord in duplicateChords)
+        {
+            yield return Error(
+                $"Profile \"{profile.Name}\" has more than one Chord Binding for {ChordName(chord)}.", profile.Id);
+        }
+    }
+
+    /// <summary>How messages name a Chord, e.g. <c>A+B</c>.</summary>
+    private static string ChordName(ControllerButton chord) =>
+        chord == ControllerButton.None ? "with no buttons" : string.Join("+", ControllerButtons.Split(chord));
+
     // The range checks are written negated so that NaN fails them too.
     private static IEnumerable<ValidationIssue> TuningIssues(Profile profile)
     {
@@ -170,6 +224,14 @@ public static class SettingsValidator
         if (tuning.NudgeStep < 1)
         {
             yield return Error($"The Nudge step of Profile \"{profile.Name}\" must be at least 1 pixel.", profile.Id);
+        }
+
+        if (profile.ChordWait < TimeSpan.Zero || profile.ChordWait > Profile.MaxChordWait)
+        {
+            yield return Error(
+                $"The Chord Wait of Profile \"{profile.Name}\" must be between 0 and " +
+                $"{Profile.MaxChordWait.TotalMilliseconds} ms.",
+                profile.Id);
         }
     }
 
@@ -217,6 +279,17 @@ public static class SettingsValidator
             {
                 yield return Warning(
                     $"The Binding for {button} in Profile \"{profile.Name}\" switches to a Profile that no longer exists.",
+                    profile.Id);
+            }
+        }
+
+        foreach (var chordBinding in profile.ChordBindings)
+        {
+            if (chordBinding.Action is SwitchToProfileAction switchAction && settings.FindProfile(switchAction.ProfileId) is null)
+            {
+                yield return Warning(
+                    $"The Chord Binding {ChordName(chordBinding.Chord.Buttons)} in Profile \"{profile.Name}\" switches to " +
+                    "a Profile that no longer exists.",
                     profile.Id);
             }
         }

@@ -4,10 +4,15 @@ using ControllerPC.Core.Triggers;
 namespace ControllerPC.Core.Profiles;
 
 /// <summary>
-/// A Profile: a named set of Bindings, Right Stick Role, movement tuning and optional Trigger Overrides.
+/// A Profile: a named set of Bindings, Chord Bindings, Right Stick Role, movement tuning and optional Trigger Overrides.
 /// </summary>
 public sealed class Profile
 {
+    public static readonly TimeSpan DefaultChordWait = TimeSpan.FromMilliseconds(75);
+
+    /// <summary>The longest Chord Wait allowed; longer would make the single Bindings of Chord buttons feel laggy.</summary>
+    public static readonly TimeSpan MaxChordWait = TimeSpan.FromMilliseconds(500);
+
     /// <summary>Stable identity, so Profile switch Actions survive renames. A new Profile gets a fresh id.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -18,6 +23,15 @@ public sealed class Profile
     /// Missing buttons act as nothing.
     /// </summary>
     public Dictionary<ControllerButton, ButtonAction> Bindings { get; set; } = [];
+
+    /// <summary>The Chord Bindings, each for a Chord of two or more buttons; no two share a Chord.</summary>
+    public List<ChordBinding> ChordBindings { get; set; } = [];
+
+    /// <summary>
+    /// The Chord Wait: how long a button used in any Chord Binding waits before performing its own Binding, in
+    /// [0, <see cref="MaxChordWait"/>]. Zero performs it at once.
+    /// </summary>
+    public TimeSpan ChordWait { get; set; } = DefaultChordWait;
 
     public RightStickRole RightStickRole { get; set; } = RightStickRole.Scroll;
 

@@ -2,6 +2,7 @@ using ControllerPC.Core.Controller;
 using ControllerPC.Core.DesktopMode;
 using ControllerPC.Core.Profiles;
 using ControllerPC.Core.Tests.Fakes;
+using ControllerPC.Core.Triggers;
 
 namespace ControllerPC.Core.Tests.DesktopMode;
 
@@ -43,6 +44,12 @@ internal sealed class TranslatorHarness
     public TranslatorHarness Bind(ControllerButton button, ButtonAction action)
     {
         Profile.Bindings[button] = action;
+        return this;
+    }
+
+    public TranslatorHarness BindChord(ControllerButton chord, ButtonAction action)
+    {
+        Profile.ChordBindings.Add(new ChordBinding { Chord = new Chord(chord), Action = action });
         return this;
     }
 
