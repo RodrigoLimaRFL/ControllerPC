@@ -48,6 +48,17 @@ public sealed class DesktopInputTranslatorNudgeTests
     }
 
     [Fact]
+    public void Update_NudgePressed_ElapsedTimeOfThePressUpdateDoesNotCountTowardRepeat()
+    {
+        _harness.Begin();
+        _harness.Hold(Right, DesktopInputTranslator.MaxUpdateElapsed);
+
+        _harness.HoldFor(Right, NudgeRepeatTimer.InitialRepeatDelay - OneTick);
+
+        Assert.Equal([(NudgeStep, 0)], _harness.Sink.CursorMoves);
+    }
+
+    [Fact]
     public void Update_NudgeHeldForInitialDelay_RepeatsOnce()
     {
         _harness.Begin();
