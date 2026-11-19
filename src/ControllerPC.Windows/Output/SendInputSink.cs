@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using ControllerPC.Core.Output;
+using ControllerPC.Windows.Diagnostics;
 
 namespace ControllerPC.Windows.Output;
 
@@ -12,11 +13,19 @@ namespace ControllerPC.Windows.Output;
 /// <remarks>
 /// Each method sends its events in a single SendInput call so they cannot be interleaved with other input.
 /// Windows silently drops synthetic input aimed at a higher-integrity window (UIPI); that is logged, not thrown,
-/// because it is an expected condition rather than a bug.
+/// because it is an expected condition rather than a bug. It applies to releases too: a key or mouse button
+/// pressed while a normal window had focus may never be released if an elevated window takes the focus before the
+/// release is sent, and stays down until the user presses and releases it physically. Running the app elevated
+/// avoids this. The failure is logged when it starts, not for every event while it lasts.
 /// </remarks>
 public sealed class SendInputSink : IInputSink
 {
     private const int MaxScrollEvents = 2;
+    private const int SingleSource = 0;
+    private const uint AllInserted = 0;
+    private const uint SomeDropped = 1;
+
+    private readonly StatusChangeFilter _sendStatus = new(sourceCount: 1, AllInserted);
 
     public void MoveCursor(int dx, int dy)
     {
@@ -128,7 +137,7 @@ public sealed class SendInputSink : IInputSink
             },
         };
 
-    private static unsafe void Send(ReadOnlySpan<NativeInput> inputs)
+    private unsafe void Send(ReadOnlySpan<NativeInput> inputs)
     {
         if (inputs.IsEmpty)
         {
@@ -141,10 +150,13 @@ public sealed class SendInputSink : IInputSink
             inserted = User32Native.SendInput((uint)inputs.Length, first, sizeof(NativeInput));
         }
 
-        if (inserted != inputs.Length)
+        int lastError = Marshal.GetLastPInvokeError();
+
+        bool allInserted = inserted == inputs.Length;
+        if (_sendStatus.Changed(SingleSource, allInserted ? AllInserted : SomeDropped) && !allInserted)
         {
             Trace.TraceWarning(
-                $"SendInput inserted {inserted} of {inputs.Length} events (error {Marshal.GetLastPInvokeError()}); "
+                $"SendInput inserted {inserted} of {inputs.Length} events (error {lastError}); "
                 + "the foreground window may be elevated (UIPI).");
         }
     }

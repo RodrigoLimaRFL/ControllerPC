@@ -17,6 +17,8 @@ These are the rules the QA review enforces before a branch can merge into `devel
 | `ControllerPC.Windows` | Thin adapters over Win32: XInput, SendInput, rumble. No decisions. | Core |
 | `ControllerPC.App` | WinForms tray app and settings window; composition root. | Core, Windows |
 | `ControllerPC.Core.Tests` | xUnit tests for Core. | Core |
+| `ControllerPC.Windows.Tests` | xUnit tests for the Windows adapters' conversions and native layouts. | Windows (and Core) |
+| `ControllerPC.App.Tests` | xUnit tests for the App's UI-independent pieces (e.g. the Desktop Mode host's helpers). | App (and its dependencies) |
 
 - Logic that can be tested without Windows belongs in Core and must have tests.
 - Windows adapters stay thin: translate types, call the API, nothing else.

@@ -15,6 +15,9 @@ public sealed class TrayIcon : IDisposable
     /// <summary><see cref="NotifyIcon.Text"/> rejects longer text.</summary>
     private const int MaxToolTipLength = 127;
 
+    /// <summary>Ignored by current Windows versions, which use the user's accessibility setting instead.</summary>
+    private const int NoticeTimeoutMilliseconds = 5000;
+
     private readonly NotifyIcon _notifyIcon;
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _enterItem;
@@ -80,6 +83,10 @@ public sealed class TrayIcon : IDisposable
         _notifyIcon.Text = ToolTipText(desktopModeActive, activeName);
         RebuildProfileItems(profiles, activeProfileId);
     }
+
+    /// <summary>Shows <paramref name="text"/> in a notification next to the tray icon.</summary>
+    public void ShowNotice(string text) =>
+        _notifyIcon.ShowBalloonTip(NoticeTimeoutMilliseconds, AppName, text, ToolTipIcon.Info);
 
     public void Dispose()
     {
