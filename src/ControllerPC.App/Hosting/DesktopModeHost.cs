@@ -3,7 +3,6 @@ using ControllerPC.Core.Controller;
 using ControllerPC.Core.DesktopMode;
 using ControllerPC.Core.Output;
 using ControllerPC.Core.Settings;
-using ControllerPC.Windows.Timing;
 
 namespace ControllerPC.App.Hosting;
 
@@ -18,12 +17,11 @@ namespace ControllerPC.App.Hosting;
 internal sealed class DesktopModeHost : IDisposable
 {
     private const string PollThreadName = "Desktop Mode poll";
-    private const uint TimerResolutionMilliseconds = 1;
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(8);
     private static readonly TimeSpan ReleaseOutputTimeout = TimeSpan.FromSeconds(1);
 
     private readonly ModeController _controller;
     private readonly CommandQueue<TimeSpan> _commands = new();
+    private readonly PauseCounter _pauses = new(); // Poll thread only.
     private readonly Stopwatch _clock = new();
 
     // Wakes the poll thread early when a command or stop arrives, so the UI never waits a whole poll interval.
@@ -76,14 +74,7 @@ internal sealed class DesktopModeHost : IDisposable
         _uiContext.Post(_ => StateChanged?.Invoke(this, initial), null);
 
         _clock.Start();
-        _pollThread = new Thread(Run)
-        {
-            Name = PollThreadName,
-            IsBackground = true,
-
-            // Cursor movement stutters when the poll thread waits behind ordinary work.
-            Priority = ThreadPriority.AboveNormal,
-        };
+        _pollThread = new Thread(Run) { Name = PollThreadName, IsBackground = true };
         _pollThread.Start();
     }
 
@@ -114,10 +105,26 @@ internal sealed class DesktopModeHost : IDisposable
         });
     }
 
-    /// <summary>Releases everything held and stops matching and translating until <see cref="Resume"/>.</summary>
-    public void Pause() => Enqueue(_ => _controller.Pause());
+    /// <summary>
+    /// Releases everything held and stops matching and translating until <see cref="Resume"/>. Pauses may overlap
+    /// (e.g. a recording and a restart as administrator): matching resumes when each has been matched by a Resume.
+    /// </summary>
+    public void Pause() => Enqueue(_ =>
+    {
+        if (_pauses.Pause())
+        {
+            _controller.Pause();
+        }
+    });
 
-    public void Resume() => Enqueue(now => _controller.Resume(now));
+    /// <summary>Ends one <see cref="Pause"/>.</summary>
+    public void Resume() => Enqueue(now =>
+    {
+        if (_pauses.Resume())
+        {
+            _controller.Resume(now);
+        }
+    });
 
     /// <summary>
     /// Leaves Desktop Mode, releasing every key and mouse button, and waits (briefly) until that is done. For
@@ -174,7 +181,7 @@ internal sealed class DesktopModeHost : IDisposable
 
     private void Run()
     {
-        using var timerResolution = TimerResolution.Request(TimerResolutionMilliseconds);
+        using var timing = new PollTiming();
         try
         {
             while (!_stopRequested)
@@ -182,7 +189,8 @@ internal sealed class DesktopModeHost : IDisposable
                 var now = _clock.Elapsed;
                 _commands.RunPending(now);
                 _controller.Tick(now);
-                _wake.WaitOne(PollInterval);
+                timing.Update(_controller.IsDesktopModeActive);
+                _wake.WaitOne(timing.Interval);
             }
 
             _controller.ExitDesktopMode(_clock.Elapsed);

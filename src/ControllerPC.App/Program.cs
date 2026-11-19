@@ -10,14 +10,19 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        ApplicationConfiguration.Initialize();
+
         using var instanceLock = SingleInstanceLock.TryAcquire(SingleInstanceName);
         if (instanceLock is null)
         {
+            MessageBox.Show(
+                "ControllerPC is already running. Use its icon in the notification area.",
+                "ControllerPC",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
             return;
         }
-
-        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-        ApplicationConfiguration.Initialize();
 
         var store = new SettingsStore(SettingsStore.DefaultFilePath);
         var settings = StartupSettings.Load(store);

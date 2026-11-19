@@ -64,6 +64,7 @@ internal sealed class ControllerPcContext : ApplicationContext
 
         // Windows may end the process soon after the session ends, so release output as early as possible.
         SystemEvents.SessionEnding += OnSessionEnding;
+        SystemEvents.SessionSwitch += OnSessionSwitch;
         Application.ApplicationExit += OnApplicationExit;
         _host.Start();
     }
@@ -97,6 +98,15 @@ internal sealed class ControllerPcContext : ApplicationContext
     }
 
     private void OnSessionEnding(object? sender, SessionEndingEventArgs e) => _host.ReleaseOutputNow();
+
+    // Nobody is at this desktop any more: a controller left in Desktop Mode would keep driving the locked session.
+    private void OnSessionSwitch(object? sender, SessionSwitchEventArgs e)
+    {
+        if (e.Reason is SessionSwitchReason.SessionLock or SessionSwitchReason.ConsoleDisconnect or SessionSwitchReason.RemoteDisconnect)
+        {
+            _host.ExitDesktopMode();
+        }
+    }
 
     private void OnApplicationExit(object? sender, EventArgs e) => ShutDown();
 
@@ -254,6 +264,7 @@ internal sealed class ControllerPcContext : ApplicationContext
 
         _shutDown = true;
         SystemEvents.SessionEnding -= OnSessionEnding;
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
         Application.ApplicationExit -= OnApplicationExit;
         _settingsForm?.Close();
         _host.Stop();
