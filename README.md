@@ -48,6 +48,22 @@ dotnet build
 dotnet test
 ```
 
+## Install
+
+Builds the app, installs it to `%LocalAppData%\Programs\ControllerPC` and adds a Start Menu shortcut, so
+searching "ControllerPC" in the Start menu finds it. No administrator rights needed. It builds from
+source, so it needs the .NET SDK (see Build). Quit the app first when updating.
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/install.ps1
+```
+
+To remove it (add `-RemoveSettings` to also delete your settings):
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/uninstall.ps1
+```
+
 ## Publish
 
 ```bash
