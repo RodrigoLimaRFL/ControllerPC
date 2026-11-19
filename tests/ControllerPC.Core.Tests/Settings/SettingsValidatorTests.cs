@@ -432,6 +432,139 @@ public class SettingsValidatorTests
         Assert.Empty(SettingsValidator.Validate(_settings));
     }
 
+    // Chord Bindings
+
+    [Fact]
+    public void Validate_ChordBindingWithTwoButtons_HasNoIssues()
+    {
+        AddChordBinding(ControllerButton.A | ControllerButton.X, new MouseButtonAction(MouseButton.Middle));
+
+        Assert.Empty(SettingsValidator.Validate(_settings));
+    }
+
+    [Theory]
+    [InlineData(ControllerButton.None)]
+    [InlineData(ControllerButton.A)]
+    public void Validate_ChordBindingWithFewerThanTwoButtons_IsError(ControllerButton chord)
+    {
+        AddChordBinding(chord, NoAction.Instance);
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Fact]
+    public void Validate_TwoChordBindingsWithTheSameChord_IsError()
+    {
+        AddChordBinding(ControllerButton.A | ControllerButton.X, NoAction.Instance);
+        AddChordBinding(ControllerButton.X | ControllerButton.A, new NextProfileAction());
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Fact]
+    public void Validate_SameChordBindingInTwoProfiles_HasNoIssues()
+    {
+        var other = TestSettings.AddProfile(_settings, "Racing");
+        AddChordBinding(ControllerButton.A | ControllerButton.X, NoAction.Instance);
+        other.ChordBindings.Add(new ChordBinding { Chord = new Chord(ControllerButton.A | ControllerButton.X) });
+
+        Assert.Empty(SettingsValidator.Validate(_settings));
+    }
+
+    [Fact]
+    public void Validate_ChordBindingWithinTheBaseExitTriggerChord_IsError()
+    {
+        AddChordBinding(TestSettings.DefaultExitChord, NoAction.Instance);
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Fact]
+    public void Validate_ChordBindingWithinAnExitTriggerOverrideStep_IsError()
+    {
+        DefaultProfile.ExitTriggerOverride = TestSettings.Trigger(
+            ControllerButton.LeftThumb | ControllerButton.RightThumb,
+            ControllerButton.X | ControllerButton.DPadUp | ControllerButton.DPadDown);
+        AddChordBinding(ControllerButton.X | ControllerButton.DPadDown, NoAction.Instance);
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Fact]
+    public void Validate_ChordBindingWithinTheBaseExitTriggerOfProfileWithExitOverride_HasNoIssues()
+    {
+        DefaultProfile.ExitTriggerOverride = TestSettings.Trigger(ControllerButton.LeftThumb | ControllerButton.RightThumb);
+        AddChordBinding(TestSettings.DefaultExitChord, NoAction.Instance);
+
+        Assert.Empty(SettingsValidator.Validate(_settings));
+    }
+
+    [Fact]
+    public void Validate_ChordBindingSharingOnlySomeExitTriggerButtons_HasNoIssues()
+    {
+        AddChordBinding(ControllerButton.Back | ControllerButton.X, NoAction.Instance);
+
+        Assert.Empty(SettingsValidator.Validate(_settings));
+    }
+
+    [Fact]
+    public void Validate_ChordBindingWithinExitTrigger_SaysItWouldBePerformedOnEveryExit()
+    {
+        AddChordBinding(TestSettings.DefaultExitChord, NoAction.Instance);
+
+        var issue = Assert.Single(SettingsValidator.Validate(_settings));
+
+        Assert.Equal(
+            "The Chord Binding Start+Back in Profile \"Default\" only uses buttons of a Step of the Profile's " +
+            "Effective Exit Trigger, so it would be performed every time Desktop Mode is exited.",
+            issue.Message);
+    }
+
+    [Fact]
+    public void Validate_ChordBindingKeyCombinationWithNoKeys_IsError()
+    {
+        AddChordBinding(ControllerButton.A | ControllerButton.X, new KeyCombinationAction(new KeyCombination([])));
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Fact]
+    public void Validate_ChordBindingSwitchToMissingProfile_Warns()
+    {
+        AddChordBinding(ControllerButton.A | ControllerButton.X, new SwitchToProfileAction(Guid.NewGuid()));
+
+        AssertSingleIssue(IssueSeverity.Warning, DefaultProfile.Id);
+    }
+
+    [Fact]
+    public void Validate_ChordBindingSwitchToExistingProfile_HasNoIssues()
+    {
+        var target = TestSettings.AddProfile(_settings, "Target");
+        AddChordBinding(ControllerButton.A | ControllerButton.X, new SwitchToProfileAction(target.Id));
+
+        Assert.Empty(SettingsValidator.Validate(_settings));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(501)]
+    public void Validate_ChordWaitOutsideRange_IsError(int milliseconds)
+    {
+        DefaultProfile.ChordWait = TimeSpan.FromMilliseconds(milliseconds);
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(500)]
+    public void Validate_ChordWaitInsideRange_HasNoIssues(int milliseconds)
+    {
+        DefaultProfile.ChordWait = TimeSpan.FromMilliseconds(milliseconds);
+
+        Assert.Empty(SettingsValidator.Validate(_settings));
+    }
+
     // Messages
 
     [Fact]
@@ -457,6 +590,9 @@ public class SettingsValidatorTests
             "The Entry Trigger Override of Profile \"Racing\" has the same Steps as the Base Entry Trigger.",
             issue.Message);
     }
+
+    private void AddChordBinding(ControllerButton chord, ButtonAction action) =>
+        DefaultProfile.ChordBindings.Add(new ChordBinding { Chord = new Chord(chord), Action = action });
 
     private void AssertSingleIssue(IssueSeverity severity, Guid? profileId)
     {

@@ -303,6 +303,70 @@ public class SettingsSerializerTests
     }
 
     [Fact]
+    public void RoundTrip_PreservesChordBindingsAndChordWait()
+    {
+        var settings = DefaultSettings.Create();
+        settings.ActiveProfile.ChordWait = TimeSpan.FromMilliseconds(120);
+        settings.ActiveProfile.ChordBindings.Add(new ChordBinding
+        {
+            Chord = new Chord(ControllerButton.A | ControllerButton.X),
+            Action = new KeyCombinationAction(new KeyCombination([0x11, 0x43])),
+        });
+        settings.ActiveProfile.ChordBindings.Add(new ChordBinding
+        {
+            Chord = new Chord(ControllerButton.B | ControllerButton.Y | ControllerButton.DPadLeft),
+            Action = new SwitchToProfileAction(Guid.Parse("6f1c2d3e-4a5b-4c6d-8e7f-901a2b3c4d5e")),
+        });
+
+        var roundTripped = RoundTrip(settings).ActiveProfile;
+
+        Assert.Equal(TimeSpan.FromMilliseconds(120), roundTripped.ChordWait);
+        Assert.Equal(
+            settings.ActiveProfile.ChordBindings.Select(binding => (binding.Chord, binding.Action)),
+            roundTripped.ChordBindings.Select(binding => (binding.Chord, binding.Action)));
+    }
+
+    [Fact]
+    public void Deserialize_ProfileWithoutChordFields_UsesDefaults()
+    {
+        var settings = SettingsSerializer.Deserialize("{\"profiles\": [{\"name\": \"Solo\"}]}");
+
+        var profile = Assert.Single(settings.Profiles);
+        Assert.Empty(profile.ChordBindings);
+        Assert.Equal(Profile.DefaultChordWait, profile.ChordWait);
+    }
+
+    [Fact]
+    public void Deserialize_ChordBindingWithoutAction_ActsAsNothing()
+    {
+        var settings = SettingsSerializer.Deserialize(
+            "{\"profiles\": [{\"chordBindings\": [{\"chord\": {\"buttons\": \"A, B\"}}]}]}");
+
+        Assert.Equal(NoAction.Instance, Assert.Single(settings.Profiles[0].ChordBindings).Action);
+    }
+
+    [Theory]
+    [InlineData("{\"profiles\": [{\"chordBindings\": null}]}")]
+    [InlineData("{\"profiles\": [{\"chordBindings\": [null]}]}")]
+    [InlineData("{\"profiles\": [{\"chordBindings\": [{\"chord\": {\"buttons\": \"A, B\"}, \"action\": null}]}]}")]
+    [InlineData("{\"profiles\": [{\"chordBindings\": [{\"chord\": {\"buttons\": \"A, B\"}, \"action\": {\"type\": \"keys\"}}]}]}")]
+    public void Deserialize_ChordBindingMissingRequiredValue_ThrowsFormatException(string json)
+    {
+        Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
+    }
+
+    [Theory]
+    [InlineData("262144")]
+    [InlineData("\"1024\"")]
+    [InlineData("\"A, 1024\"")]
+    public void Deserialize_ChordBindingWithUnknownButton_ThrowsFormatException(string value)
+    {
+        var json = $"{{\"profiles\": [{{\"chordBindings\": [{{\"chord\": {{\"buttons\": {value}}}}}]}}]}}";
+
+        Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
+    }
+
+    [Fact]
     public void Clone_ReturnsIndependentCopy()
     {
         var original = DefaultSettings.Create();

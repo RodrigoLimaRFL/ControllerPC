@@ -21,7 +21,7 @@ internal sealed class ButtonEdgeDetector
     {
         _ignored &= held;
         var counted = held & ~_ignored;
-        var edges = new ButtonEdges(Pressed: counted & ~_previous, Released: _previous & ~counted);
+        var edges = new ButtonEdges(Pressed: counted & ~_previous, Released: _previous & ~counted, Held: counted);
         _previous = counted;
         return edges;
     }
