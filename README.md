@@ -28,7 +28,7 @@ Default Bindings in Desktop Mode:
 | Y | On-screen keyboard (Win+Ctrl+O) |
 
 The tray menu can also enter and leave Desktop Mode, pick the Active Profile, open **Settings...** (Mode Triggers,
-Profiles, Bindings, Chord Bindings, movement tuning, per-Profile Trigger Overrides) and quit. Double-click the icon to open Settings.
+Profiles, Bindings and Chord Bindings (including Macros), movement tuning, per-Profile Trigger Overrides) and quit. Double-click the icon to open Settings.
 
 Things to know:
 

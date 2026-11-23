@@ -9,4 +9,5 @@ internal enum ActionKind
     Nudge,
     NextProfile,
     SwitchToProfile,
+    Macro,
 }
