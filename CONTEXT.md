@@ -62,11 +62,18 @@ _Avoid_: combo binding, combination
 The short, per-Profile delay before a button that belongs to any Chord Binding performs its own Binding, giving its Chord time to complete.
 
 **Action**:
-What a Binding produces: a mouse button, a Key Combination, a Nudge in one direction, a Profile switch ("Next Profile" or "Switch to Profile X"), or nothing. Mouse buttons and Key Combinations are held for as long as the button is held.
+What a Binding produces: a mouse button, a Key Combination, a Macro, a Nudge in one direction, a Profile switch ("Next Profile" or "Switch to Profile X"), or nothing. Mouse buttons and Key Combinations are held for as long as the button is held.
 
 **Key Combination**:
 A set of one or more keyboard keys pressed together as a single Action, e.g. `Ctrl+Alt+Tab` or `Win+D`.
-_Avoid_: hotkey, shortcut, macro
+_Avoid_: hotkey, shortcut
+
+**Macro**:
+An Action that taps an ordered list of Key Combinations, one after another, each time its button or Chord is pressed.
+_Avoid_: script, sequence
+
+**Macro Delay**:
+The pause between two consecutive Key Combinations of a Macro.
 
 **Nudge**:
 A small, precise cursor movement, by default produced by the D-pad, as opposed to the analog movement of the left stick.

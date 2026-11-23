@@ -12,8 +12,10 @@ namespace ControllerPC.Core.Settings;
 /// <item>A Mode Trigger with Step Gap or Final Hold duration &lt;= 0.</item>
 /// <item>Two watched Entry Trigger sources with identical Steps: a Profile's Entry Trigger Override equal to
 /// the Base Entry Trigger or to another Profile's override.</item>
-/// <item>A Binding whose key is <c>None</c> or more than one button, or a Key Combination with no keys (in a Binding
-/// or a Chord Binding).</item>
+/// <item>A Binding whose key is <c>None</c> or more than one button.</item>
+/// <item>In the Action of a Binding or a Chord Binding: a Key Combination with no keys; a Macro with no Key
+/// Combinations, with a Key Combination with no keys, or with a Macro Delay outside
+/// [0, <see cref="MacroAction.MaxDelay"/>].</item>
 /// <item>A Chord Binding with fewer than two buttons; two Chord Bindings with the same Chord in one Profile.</item>
 /// <item>A Chord Binding whose buttons are all part of one Step's Chord of the Profile's Effective Exit Trigger: it would
 /// be performed on every exit.</item>
@@ -24,8 +26,8 @@ namespace ControllerPC.Core.Settings;
 /// <list type="bullet">
 /// <item>One Entry Trigger's Steps are a strict prefix of another's (the shorter one may fire first and prevent the
 /// longer one).</item>
-/// <item>A Profile's Effective Exit Trigger uses buttons that the same Profile binds to Key Combinations or mouse
-/// buttons.</item>
+/// <item>A Profile's Effective Exit Trigger uses buttons that the same Profile binds to Key Combinations, Macros or
+/// mouse buttons.</item>
 /// <item>A "Switch to Profile" Action (of a Binding or a Chord Binding) pointing at a Profile that no longer exists.</item>
 /// </list>
 /// Chord Bindings are not checked against Entry Triggers, which are only watched outside Desktop Mode.
@@ -147,12 +149,41 @@ public static class SettingsValidator
                     profile.Id);
             }
 
-            if (action is KeyCombinationAction { Keys.IsEmpty: true })
+            foreach (var issue in ActionIssues(action, $"The Binding for {button} in Profile \"{profile.Name}\"", profile.Id))
             {
-                yield return Error(
-                    $"The Binding for {button} in Profile \"{profile.Name}\" has a Key Combination with no keys.",
-                    profile.Id);
+                yield return issue;
             }
+        }
+    }
+
+    /// <param name="subject">How the message names the Binding or Chord Binding, e.g. <c>The Binding for A in Profile "Default"</c>.</param>
+    private static IEnumerable<ValidationIssue> ActionIssues(ButtonAction action, string subject, Guid profileId)
+    {
+        switch (action)
+        {
+            case KeyCombinationAction { Keys.IsEmpty: true }:
+                yield return Error($"{subject} has a Key Combination with no keys.", profileId);
+                break;
+            case MacroAction macro:
+                if (macro.KeyCombinations.IsEmpty)
+                {
+                    yield return Error($"{subject} has a Macro with no Key Combinations.", profileId);
+                }
+
+                if (macro.KeyCombinations.Any(keys => keys.IsEmpty))
+                {
+                    yield return Error($"{subject} has a Macro with a Key Combination with no keys.", profileId);
+                }
+
+                if (macro.Delay < TimeSpan.Zero || macro.Delay > MacroAction.MaxDelay)
+                {
+                    yield return Error(
+                        $"{subject} has a Macro whose Macro Delay is not between 0 and " +
+                        $"{MacroAction.MaxDelay.TotalMilliseconds} ms.",
+                        profileId);
+                }
+
+                break;
         }
     }
 
@@ -178,11 +209,10 @@ public static class SettingsValidator
                     profile.Id);
             }
 
-            if (chordBinding.Action is KeyCombinationAction { Keys.IsEmpty: true })
+            var subject = $"The Chord Binding {name} in Profile \"{profile.Name}\"";
+            foreach (var issue in ActionIssues(chordBinding.Action, subject, profile.Id))
             {
-                yield return Error(
-                    $"The Chord Binding {name} in Profile \"{profile.Name}\" has a Key Combination with no keys.",
-                    profile.Id);
+                yield return issue;
             }
         }
 
@@ -259,14 +289,14 @@ public static class SettingsValidator
         var exitButtons = settings.EffectiveExitTrigger(profile).Steps
             .Aggregate(ControllerButton.None, (buttons, chord) => buttons | chord.Buttons);
         var overlapping = ControllerButtons.Split(exitButtons)
-            .Where(button => profile.GetAction(button) is KeyCombinationAction or MouseButtonAction)
+            .Where(button => profile.GetAction(button) is KeyCombinationAction or MacroAction or MouseButtonAction)
             .ToList();
 
         if (overlapping.Count > 0)
         {
             yield return Warning(
                 $"The Effective Exit Trigger of Profile \"{profile.Name}\" uses {string.Join(", ", overlapping)}, which this " +
-                "Profile binds to Key Combinations or mouse buttons. Performing the Exit Trigger will also press them.",
+                "Profile binds to Key Combinations, Macros or mouse buttons. Performing the Exit Trigger will also press them.",
                 profile.Id);
         }
     }
