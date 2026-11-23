@@ -16,4 +16,5 @@ namespace ControllerPC.Core.Profiles;
 [JsonDerivedType(typeof(NudgeAction), "nudge")]
 [JsonDerivedType(typeof(NextProfileAction), "nextProfile")]
 [JsonDerivedType(typeof(SwitchToProfileAction), "switchProfile")]
+[JsonDerivedType(typeof(MacroAction), "macro")]
 public abstract record ButtonAction;

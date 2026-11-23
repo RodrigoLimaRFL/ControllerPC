@@ -66,6 +66,13 @@ internal static class ParsedSettingsCheck
             case KeyCombinationAction keyCombinationAction:
                 Require(keyCombinationAction.Keys, "a Key Combination");
                 break;
+            case MacroAction macroAction:
+                foreach (var keys in macroAction.KeyCombinations)
+                {
+                    Require(keys, "a Key Combination of a Macro");
+                }
+
+                break;
             case MouseButtonAction mouseButtonAction:
                 RequireDefined(mouseButtonAction.Button, "mouse button");
                 break;

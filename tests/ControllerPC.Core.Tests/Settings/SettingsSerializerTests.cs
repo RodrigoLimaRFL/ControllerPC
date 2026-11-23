@@ -16,6 +16,7 @@ public class SettingsSerializerTests
         new NudgeAction(NudgeDirection.Left),
         new NextProfileAction(),
         new SwitchToProfileAction(Guid.Parse("6f1c2d3e-4a5b-4c6d-8e7f-901a2b3c4d5e")),
+        new MacroAction([new KeyCombination([0x11, 0x43]), new KeyCombination([0x0D])], TimeSpan.FromMilliseconds(80)),
     };
 
     [Fact]
@@ -362,6 +363,49 @@ public class SettingsSerializerTests
     public void Deserialize_ChordBindingWithUnknownButton_ThrowsFormatException(string value)
     {
         var json = $"{{\"profiles\": [{{\"chordBindings\": [{{\"chord\": {{\"buttons\": {value}}}}}]}}]}}";
+
+        Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
+    }
+
+    [Fact]
+    public void Serialize_WritesMacroTypeDiscriminator()
+    {
+        var settings = DefaultSettings.Create();
+        settings.ActiveProfile.Bindings[ControllerButton.X] =
+            new MacroAction([new KeyCombination([0x0D])], MacroAction.DefaultDelay);
+
+        Assert.Contains("\"type\": \"macro\"", SettingsSerializer.Serialize(settings));
+    }
+
+    [Fact]
+    public void RoundTrip_PreservesMacroOnChordBinding()
+    {
+        var macro = new MacroAction([new KeyCombination([0x11, 0x43]), new KeyCombination([0x11, 0x56])], TimeSpan.Zero);
+        var settings = DefaultSettings.Create();
+        settings.ActiveProfile.ChordBindings.Add(
+            new ChordBinding { Chord = new Chord(ControllerButton.A | ControllerButton.X), Action = macro });
+
+        var roundTripped = RoundTrip(settings);
+
+        Assert.Equal(macro, Assert.Single(roundTripped.ActiveProfile.ChordBindings).Action);
+    }
+
+    [Fact]
+    public void Deserialize_MacroWithoutKeyCombinations_HasNone()
+    {
+        var settings = SettingsSerializer.Deserialize(
+            "{\"profiles\": [{\"bindings\": {\"A\": {\"type\": \"macro\", \"delay\": \"00:00:00.05\"}}}]}");
+
+        var macro = Assert.IsType<MacroAction>(settings.Profiles[0].Bindings[ControllerButton.A]);
+        Assert.Empty(macro.KeyCombinations);
+        Assert.Equal(MacroAction.DefaultDelay, macro.Delay);
+    }
+
+    [Fact]
+    public void Deserialize_MacroWithNullKeyCombination_ThrowsFormatException()
+    {
+        const string json =
+            "{\"profiles\": [{\"bindings\": {\"A\": {\"type\": \"macro\", \"keyCombinations\": [null], \"delay\": \"00:00:00.05\"}}}]}";
 
         Assert.Throws<FormatException>(() => SettingsSerializer.Deserialize(json));
     }
