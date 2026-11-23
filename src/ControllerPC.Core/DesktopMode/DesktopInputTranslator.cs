@@ -101,12 +101,13 @@ public sealed class DesktopInputTranslator
         var boundedElapsed = TimeSpan.FromTicks(Math.Clamp(elapsed.Ticks, 0, MaxUpdateElapsed.Ticks));
         var edges = _buttonEdges.Update(state.Buttons);
 
-        // Releases go first so that a Binding let go in the same poll another is pressed is fully up before the new one
-        // goes down; held Nudges, running Macros and waiting buttons advance before new presses so a fresh press does not
-        // count this update's time.
+        // Running Macros advance before anything can start one (a tap on release included), so a new run's first tap
+        // does not count this update's time. Releases go first so that a Binding let go in the same poll another is
+        // pressed is fully up before the new one goes down; held Nudges and waiting buttons advance before new presses
+        // so a fresh press does not count this update's time either.
+        _macros.Advance(boundedElapsed);
         var profileSwitch = ReleaseButtons(edges.Released, _profile);
         _nudges.Advance(boundedElapsed);
-        _macros.Advance(boundedElapsed);
         _pending.Advance(boundedElapsed);
         profileSwitch = KeepFirst(profileSwitch, PressButtons(edges.Pressed, _profile));
         profileSwitch = KeepFirst(profileSwitch, ActivateChordBindings(edges, _profile));

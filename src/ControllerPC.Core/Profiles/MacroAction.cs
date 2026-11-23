@@ -8,6 +8,10 @@ namespace ControllerPC.Core.Profiles;
 /// A Macro: taps its Key Combinations one after another, with the Macro <see cref="Delay"/> between two of them,
 /// each time its button or Chord is pressed.
 /// </summary>
+/// <remarks>
+/// In the settings JSON, a Macro without a <c>delay</c> loads with a Macro Delay of 0 ms (not <see cref="DefaultDelay"/>),
+/// because missing constructor values are filled with their default; editors should always write it.
+/// </remarks>
 public sealed record MacroAction : ButtonAction
 {
     public static readonly TimeSpan DefaultDelay = TimeSpan.FromMilliseconds(50);

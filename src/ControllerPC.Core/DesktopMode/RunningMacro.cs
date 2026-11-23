@@ -39,6 +39,10 @@ internal sealed class RunningMacro
     }
 
     /// <summary>Performs every press and release that falls due within <paramref name="elapsed"/>.</summary>
+    /// <remarks>
+    /// After a stall the (capped) elapsed can cover several taps and Macro Delays, which are then performed back to back
+    /// in one update, as held Nudges catch up.
+    /// </remarks>
     public void Advance(TimeSpan elapsed)
     {
         var remaining = elapsed;

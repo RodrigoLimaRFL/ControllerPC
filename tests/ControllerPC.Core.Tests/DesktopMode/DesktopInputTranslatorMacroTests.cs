@@ -289,6 +289,32 @@ public sealed class DesktopInputTranslatorMacroTests
     }
 
     [Fact]
+    public void Update_MacroOnChordButtonTapped_HoldsTheFirstKeyCombinationForTheWholeTap()
+    {
+        var poll = TimeSpan.FromMilliseconds(8);
+        _harness.BindChord(A | X, NoAction.Instance).Begin();
+        _harness.Hold(A, TimeSpan.Zero);
+        _harness.Hold(None, poll);
+
+        _harness.Hold(None, Tap - OneTick);
+        Assert.Equal([PressCall(Ctrl, C)], _harness.Sink.KeyCalls);
+
+        _harness.Hold(None, OneTick);
+        Assert.Equal([PressCall(Ctrl, C), ReleaseCall(Ctrl, C)], _harness.Sink.KeyCalls);
+    }
+
+    [Fact]
+    public void Update_MacroOnChordButtonTappedAfterAStall_DoesNotReleaseInTheSameUpdate()
+    {
+        _harness.BindChord(A | X, NoAction.Instance).Begin();
+        _harness.Hold(A, TimeSpan.Zero);
+
+        _harness.Hold(None, TimeSpan.FromHours(1));
+
+        Assert.Equal([PressCall(Ctrl, C)], _harness.Sink.KeyCalls);
+    }
+
+    [Fact]
     public void Update_MacroOnChordButtonTapped_RunsToTheEnd()
     {
         _harness.BindChord(A | X, NoAction.Instance).Begin();
