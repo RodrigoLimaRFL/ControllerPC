@@ -565,6 +565,81 @@ public class SettingsValidatorTests
         Assert.Empty(SettingsValidator.Validate(_settings));
     }
 
+    // Macros
+
+    [Fact]
+    public void Validate_MacroWithKeyCombinations_HasNoIssues()
+    {
+        DefaultProfile.Bindings[ControllerButton.X] = Macro(MacroAction.DefaultDelay, [0x11, 0x43], [0x0D]);
+
+        Assert.Empty(SettingsValidator.Validate(_settings));
+    }
+
+    [Fact]
+    public void Validate_MacroWithNoKeyCombinations_IsError()
+    {
+        DefaultProfile.Bindings[ControllerButton.X] = Macro(MacroAction.DefaultDelay);
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Fact]
+    public void Validate_MacroWithAKeyCombinationWithNoKeys_IsError()
+    {
+        DefaultProfile.Bindings[ControllerButton.X] = Macro(MacroAction.DefaultDelay, [0x0D], []);
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(2001)]
+    public void Validate_MacroDelayOutsideRange_IsError(int milliseconds)
+    {
+        DefaultProfile.Bindings[ControllerButton.X] = Macro(TimeSpan.FromMilliseconds(milliseconds), [0x0D]);
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2000)]
+    public void Validate_MacroDelayInsideRange_HasNoIssues(int milliseconds)
+    {
+        DefaultProfile.Bindings[ControllerButton.X] = Macro(TimeSpan.FromMilliseconds(milliseconds), [0x0D]);
+
+        Assert.Empty(SettingsValidator.Validate(_settings));
+    }
+
+    [Fact]
+    public void Validate_ChordBindingMacroWithNoKeyCombinations_IsError()
+    {
+        AddChordBinding(ControllerButton.A | ControllerButton.X, Macro(MacroAction.DefaultDelay));
+
+        AssertSingleIssue(IssueSeverity.Error, DefaultProfile.Id);
+    }
+
+    [Fact]
+    public void Validate_MacroWithNoKeyCombinations_SaysSo()
+    {
+        DefaultProfile.Bindings[ControllerButton.X] = Macro(MacroAction.DefaultDelay);
+
+        var issue = Assert.Single(SettingsValidator.Validate(_settings));
+
+        Assert.Equal("The Binding for X in Profile \"Default\" has a Macro with no Key Combinations.", issue.Message);
+    }
+
+    [Fact]
+    public void Validate_ExitTriggerButtonBoundToMacro_Warns()
+    {
+        DefaultProfile.Bindings[ControllerButton.Back] = Macro(MacroAction.DefaultDelay, [0x0D]);
+
+        var issue = Assert.Single(SettingsValidator.Validate(_settings));
+
+        Assert.Equal(IssueSeverity.Warning, issue.Severity);
+        Assert.Contains("binds to Key Combinations, Macros or mouse buttons", issue.Message);
+    }
+
     // Messages
 
     [Fact]
@@ -590,6 +665,9 @@ public class SettingsValidatorTests
             "The Entry Trigger Override of Profile \"Racing\" has the same Steps as the Base Entry Trigger.",
             issue.Message);
     }
+
+    private static MacroAction Macro(TimeSpan delay, params ushort[][] keyCombinations) =>
+        new(keyCombinations.Select(keys => new KeyCombination(keys)), delay);
 
     private void AddChordBinding(ControllerButton chord, ButtonAction action) =>
         DefaultProfile.ChordBindings.Add(new ChordBinding { Chord = new Chord(chord), Action = action });
