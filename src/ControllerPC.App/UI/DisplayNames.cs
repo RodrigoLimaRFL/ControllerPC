@@ -10,6 +10,8 @@ internal static class DisplayNames
 {
     private const string ChordSeparator = " + ";
     private const string KeySeparator = "+";
+    private const string ListSeparator = ", ";
+    private const int MacroSummaryLength = 3;
 
     private static readonly Dictionary<ControllerButton, string> ButtonNames = new()
     {
@@ -119,9 +121,25 @@ internal static class DisplayNames
 
     public static string ForRightStickRole(RightStickRole role) => role.ToString();
 
+    /// <summary>One Key Combination of a Macro, numbered from 1: "1. Ctrl+C".</summary>
+    public static string ForMacroKeyCombination(int index, KeyCombination keys) => $"{index + 1}. {ForKeyCombination(keys)}";
+
     /// <summary>A Chord Binding as "LB + A → Key Combination: Ctrl+C".</summary>
     public static string ForChordBinding(ChordBinding binding, IEnumerable<Profile> profiles) =>
         $"{ForChord(binding.Chord)} → {ForAction(binding.Action, profiles)}";
+
+    /// <summary>A Macro's first few Key Combinations, e.g. "Ctrl+C, Alt+Tab, Ctrl+V, …", so list rows stay short.</summary>
+    private static string ForMacroSummary(MacroAction macro)
+    {
+        if (macro.KeyCombinations.IsEmpty)
+        {
+            return "(no Key Combinations)";
+        }
+
+        var shown = macro.KeyCombinations.Take(MacroSummaryLength).Select(ForKeyCombination);
+        var more = macro.KeyCombinations.Length > MacroSummaryLength ? ListSeparator + "\u2026" : string.Empty;
+        return string.Join(ListSeparator, shown) + more;
+    }
 
     public static string ForActionKind(ActionKind kind) => kind switch
     {
@@ -131,6 +149,7 @@ internal static class DisplayNames
         ActionKind.Nudge => "Nudge",
         ActionKind.NextProfile => "Next Profile",
         ActionKind.SwitchToProfile => "Switch to Profile",
+        ActionKind.Macro => "Macro",
         _ => kind.ToString(),
     };
 
@@ -146,6 +165,7 @@ internal static class DisplayNames
         NextProfileAction => "Next Profile",
         SwitchToProfileAction switchTo =>
             $"Switch to Profile: {profiles.FirstOrDefault(p => p.Id == switchTo.ProfileId)?.Name ?? "(missing Profile)"}",
+        MacroAction macro => $"Macro: {ForMacroSummary(macro)}",
         _ => action.GetType().Name,
     };
 }

@@ -18,6 +18,10 @@ namespace ControllerPC.Core.DesktopMode;
 /// Keys and mouse buttons are reference-counted, so when two held Bindings share one (e.g. Ctrl), it is only released
 /// after the last of them is let go.</item>
 /// <item>Nudge Actions move once on press, then repeat while held after a delay, accelerating (named constants).</item>
+/// <item>Macro Actions run once per press: each Key Combination is held for a short tap (30 ms), released, and followed
+/// by the Macro Delay before the next. The first is pressed in the update of the press. Pressing again while it runs is
+/// ignored, holding does not repeat it and releasing early does not stop it. Its keys are reference-counted like any
+/// other. <see cref="ReleaseAll"/> (and so <see cref="Begin"/>) stops running Macros at once.</item>
 /// <item>Profile switch Actions are returned from <see cref="Update"/> once per press; the caller acts on them after
 /// <see cref="Update"/> returns.</item>
 /// <item>Chord buttons, the buttons used in any of the Profile's Chord Bindings, wait before performing their own
@@ -53,6 +57,7 @@ public sealed class DesktopInputTranslator
 
     private readonly PendingSingleBindings _pending = new();
     private readonly ChordBindingResolver _chordBindings = new();
+    private readonly MacroRunner _macros;
 
     // The Action each held button (or active Chord Binding, keyed by its whole Chord) produced when pressed, so its
     // release matches its press even if the Profile's Bindings are edited in between.
@@ -64,6 +69,7 @@ public sealed class DesktopInputTranslator
     public DesktopInputTranslator(IInputSink sink)
     {
         _heldOutput = new HeldOutputTracker(sink);
+        _macros = new MacroRunner(_heldOutput);
         _nudges = new NudgeRepeater(sink);
         _cursor = new CursorMover(sink);
         _scroller = new Scroller(sink);
@@ -95,9 +101,11 @@ public sealed class DesktopInputTranslator
         var boundedElapsed = TimeSpan.FromTicks(Math.Clamp(elapsed.Ticks, 0, MaxUpdateElapsed.Ticks));
         var edges = _buttonEdges.Update(state.Buttons);
 
-        // Releases go first so that a Binding let go in the same poll another is pressed is fully up before the new one
-        // goes down; held Nudges and waiting buttons advance before new presses so a fresh press does not count this
-        // update's time.
+        // Running Macros advance before anything can start one (a tap on release included), so a new run's first tap
+        // does not count this update's time. Releases go first so that a Binding let go in the same poll another is
+        // pressed is fully up before the new one goes down; held Nudges and waiting buttons advance before new presses
+        // so a fresh press does not count this update's time either.
+        _macros.Advance(boundedElapsed);
         var profileSwitch = ReleaseButtons(edges.Released, _profile);
         _nudges.Advance(boundedElapsed);
         _pending.Advance(boundedElapsed);
@@ -115,6 +123,7 @@ public sealed class DesktopInputTranslator
     /// <summary>Releases every key and mouse button currently held through the sink and stops translating until the next <see cref="Begin"/>.</summary>
     public void ReleaseAll()
     {
+        _macros.AbortAll();
         _heldOutput.ReleaseAll();
         _heldActions.Clear();
         _pending.Clear();
@@ -207,6 +216,10 @@ public sealed class DesktopInputTranslator
             case NudgeAction nudge:
                 _nudges.Press(key, nudge.Direction, profile.Tuning.NudgeStep);
                 break;
+            case MacroAction macro:
+                // Runs on its own until done; nothing to release with the button.
+                _macros.Start(key, macro);
+                return null;
             case ProfileSwitchAction profileSwitch:
                 return profileSwitch;
             default:
