@@ -1,19 +1,15 @@
 # ControllerPC
 
-A lightweight Windows tray app that lets an Xbox-style (XInput) controller drive the PC as a mouse and
-keyboard. You switch it on and off with button sequences and/or combinations you choose.
-
-- Domain vocabulary: [CONTEXT.md](CONTEXT.md)
-- Coding standards and branch workflow: [docs/CODING-STANDARDS.md](docs/CODING-STANDARDS.md)
+A lightweight Windows tray app that lets an XInput controller use the PC as a mouse and
+keyboard, being able to switch between normal XInput and M&K with customizable commands.
 
 ## Using it
 
 ControllerPC runs in the notification area (system tray). Hold the Entry Trigger on any connected controller to
-switch **Desktop Mode** on; hold the Exit Trigger to switch it off. The controller rumbles once on entering and
-twice on leaving.
+switch **Desktop Mode** on. If you want to switch it off, hold the Exit Trigger. The Default Friggers are:
 
-- **Entry Trigger** (default): hold **LB + RB + Start** for half a second.
-- **Exit Trigger** (default): hold **Back + Start** for half a second.
+- **Entry Trigger**: hold **LB + RB + Start** for half a second.
+- **Exit Trigger**: hold **Back + Start** for half a second.
 
 Default Bindings in Desktop Mode:
 
@@ -26,9 +22,6 @@ Default Bindings in Desktop Mode:
 | A | Enter |
 | B | Esc |
 | Y | On-screen keyboard (Win+Ctrl+O) |
-
-The tray menu can also enter and leave Desktop Mode, pick the Active Profile, open **Settings...** (Mode Triggers,
-Profiles, Bindings and Chord Bindings (including Macros), movement tuning, per-Profile Trigger Overrides) and quit. Double-click the icon to open Settings.
 
 Things to know:
 
@@ -51,7 +44,7 @@ dotnet test
 ## Install
 
 Builds the app, installs it to `%LocalAppData%\Programs\ControllerPC` and adds a Start Menu shortcut, so
-searching "ControllerPC" in the Start menu finds it. No administrator rights needed. It builds from
+searching "ControllerPC" in the Start menu finds it. It builds from
 source, so it needs the .NET SDK (see Build). Quit the app first when updating.
 
 ```bash
